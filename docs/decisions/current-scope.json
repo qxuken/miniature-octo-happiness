@@ -111,11 +111,11 @@
     "src/storage/linux.rs": "512931ec540b580a4cf83706878f73aeae4358e74fefd1e0b15fd74a3fcf0220",
     "src/storage/logical.rs": "754297e6d5ed285ef4bcbe69621d59baab4d14e6664b43ad2ac34c938d514836",
     "src/storage/macos.rs": "da5c860e2e339f78e53b9d63e993c96c89aeee62f40e22c4c06c15952c6700e2",
-    "src/storage/mod.rs": "c7df5222e6d03401a600c5e624c36e3abc52e5a8341adf87d04af18ad66ef08f",
+    "src/storage/mod.rs": "1ed765a74f3e47804266317534b65a77252d55d7275fc0bb4dd865aaf33e9dae",
     "src/storage/replacement.rs": "758de2d4ff064a05b11d046097206602d2f2504f9748d2d0e99ec3693b12ebdf",
     "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
     "src/storage/simulator.rs": "f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50",
-    "src/storage/windows.rs": "9510cee8de168b43102705c2d4fffd51948dd8f25d96f0509650abddc8a3dca5",
+    "src/storage/windows.rs": "e15440da569ded3c2da401382ca1cc0895f52df7cc83a8a3980e971b7cf52710",
     "src/storage/windows_admission.rs": "6313b98e035f9b32d5f3c2c7dd9ef7dd657e47cb49123d23a65d931ff34052a7",
     "src/storage/windows_io.rs": "93f7e139d6d8e9436e8b18edefe7cf887e23a8d83316a607d6631e54bd354fc3",
     "src/storage/windows_path.rs": "74eab9df1d4c9aa0314f79e75bd68986429d7863079af68df3795a5b2e35f9fe",
@@ -224,7 +224,8 @@
     "xtask/src/windows_process.rs": "89549e971c4e51a4f9ef2a8c177107cb7da04144dac73f0e9d5c0d3ee439698d",
     "xtask/src/windows_quota.rs": "a94ff2b36494652e075060f4c815dd941c6e45d65ef50d1fd3b8888ed080572e",
     "xtask/src/windows_trace.rs": "4f34977a84b584686fd4182f4bac0e59a1aadcd9fba7419d991cf9214e7770d2",
-    "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
+    "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af",
+    "src/storage/windows_open.rs": "a0ce130f6509e1acff24be7a4e926c5a37068364ded03cfe4f5f0ce9f69c3a51"
   },
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "96f1fd12d877e16bff818a88dcd8697c33ca9c2f532fae221c1525eca75325a8",
@@ -299,7 +300,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "c70adb66e7176b4536b70645476fbc52c4a843d328b03caedc23ac337a4a0f79",
+    "xtask/tests/mutations.json": "8ffdb4760d6f640112d9742862753b284bbc08b8c8837b64ed4ea3383c62f489",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -308,7 +309,7 @@
     "docs/r1-ci-shards.md": "4ab5df8b04da818bb73547c39fd6aca3f677a7171404ec1797969d63527ce61c",
     "docs/decisions/codec-graph-current.md": "cd345252c623bbe54c1f9cc12476b1471f8a4447c102687e11cf0107b4fb8062",
     "docs/decisions/codec-catalog-current.md": "2a7ed6d87701ed3bd2b2622e388423b6f6ed3cf73cae9a5c12442fd31860237c",
-    "src/storage/mod.rs": "c7df5222e6d03401a600c5e624c36e3abc52e5a8341adf87d04af18ad66ef08f",
+    "src/storage/mod.rs": "1ed765a74f3e47804266317534b65a77252d55d7275fc0bb4dd865aaf33e9dae",
     "docs/decisions/codec-data-current.md": "54ae0641bc1568c4496be6ea2bba4c69accdb51bfbb8fd5f5320ddbf6bf81a2d",
     "docs/decisions/codec-value-current.md": "1472aee0b2c434572112ff630cfc666bad94ffcc1bff24c4c385e652baf9a211",
     "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
@@ -465,7 +466,8 @@
     "docs/decisions/shared-tls-handshake-0fe8b54.sha256": "ff29e6f007d4a2a3e1caa4cb89dc115ac7b44287b18b0d012023c1351bcb49eb",
     "docs/decisions/shared-tls-transport-current.md": "4d423e21c442164262dffe518464eeb67a7639e70d64bf2362e27a1f1b44a9bd",
     "docs/decisions/snapshot-reaper-fixture-current.md": "3a22f607854fc718b61412880e14ac4647fe0557a0e437be5b2cf6289a9b099c",
-    "docs/decisions/shared-tls-transport-0cd752b.sha256": "d64b956dbdef18cbb8ed339adad784f9e60bddd4a40954775ced926c3879f0f3"
+    "docs/decisions/shared-tls-transport-0cd752b.sha256": "d64b956dbdef18cbb8ed339adad784f9e60bddd4a40954775ced926c3879f0f3",
+    "docs/decisions/windows-open-flow-current.md": "410953fdd9437a445bd488ba33564d2730bf7017ca50998207dd9a8827fecca7"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -677,7 +679,8 @@
         "docs/decisions/storage-creation-reopen-current.md",
         "docs/decisions/compact-copy-current.md",
         "docs/decisions/compound-recovery-current.md",
-        "docs/decisions/replica-envelope-current.md"
+        "docs/decisions/replica-envelope-current.md",
+        "docs/decisions/windows-open-flow-current.md"
       ],
       "residual": "Native persistence assumptions and delegated calls remain separate from simulated pairs."
     },
@@ -720,7 +723,8 @@
         "src/storage/windows_path.rs",
         "src/storage/windows_admission.rs",
         "src/storage/windows_io.rs",
-        "src/storage/windows_rng.rs"
+        "src/storage/windows_rng.rs",
+        "src/storage/windows_open.rs"
       ],
       "references": [
         "docs/decisions/current.md",
@@ -748,7 +752,8 @@
         "docs/decisions/windows-handle-io-current.md",
         "docs/decisions/windows-rng-results-current.md",
         "docs/decisions/windows-open-results-current.md",
-        "docs/decisions/native-compaction-setup-current.md"
+        "docs/decisions/native-compaction-setup-current.md",
+        "docs/decisions/windows-open-flow-current.md"
       ],
       "residual": "Kernel outcomes, coupled pathname predicates, unsupported ABIs and physical power loss remain separate from callback controls."
     },
@@ -27713,7 +27718,7 @@
         "target": "weekend-db::weekend_db",
         "kind": "if",
         "owner": "recover_replica",
-        "start_byte": 14277,
+        "start_byte": 14322,
         "conditions": [
           "recovered.identity != identity",
           "recovered.slot.revision != revision",
@@ -45628,6 +45633,282 @@
       ],
       "mutations": [
         "r1-tls-transport-example-server-session-finish"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-PREPARE-PARENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 1724,
+        "conditions": [
+          "parent_path(\n        parent,\n        allocator,\n        |input, out| calls.resolve(input, out),\n        C::path_error,\n    )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-prepare-parent"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-OPEN-LOOKUP",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 2011,
+        "conditions": [
+          "calls.open(\n        &path,\n        Open {\n            access: 0,\n            share: SHARE_READ_WRITE | SHARE_DELETE,\n            disposition: OPEN_EXISTING,\n            flags: BACKUP_SEMANTICS,\n            operation: NativeIoOperation::OpenDirectory,\n        },\n    )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-open-lookup"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-READ-CANONICAL",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 2121,
+        "conditions": [
+          "read_path(\n        &mut path,\n        |out| calls.canonical(&lookup, out),\n        C::path_error,\n    )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-read-canonical"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-CANONICAL-DRIVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 2181,
+        "conditions": [
+          "canonical_drive(&path)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-canonical-drive"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-OPEN-DIRECTORY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 2467,
+        "conditions": [
+          "calls.open(\n        &path,\n        Open {\n            access: GENERIC_READ,\n            share: SHARE_READ_WRITE,\n            disposition: OPEN_EXISTING,\n            flags: BACKUP_SEMANTICS,\n            operation: NativeIoOperation::OpenDirectory,\n        },\n    )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-open-directory"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-DIRECTORY-METADATA",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 2515,
+        "conditions": [
+          "calls.metadata(&directory)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-directory-metadata"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-DIRECTORY-ADMISSION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 2578,
+        "conditions": [
+          "check_directory(metadata.directory, metadata.attributes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-directory-admission"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-VOLUME",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 2617,
+        "conditions": [
+          "calls.volume(&directory, letter)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-volume"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-APPEND-LEAF",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 2794,
+        "conditions": [
+          "append_leaf(&mut path, name)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-append-leaf"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-OPEN-LEAF",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 3106,
+        "conditions": [
+          "calls.open(\n        &path,\n        Open {\n            access: mode.access,\n            share: 0,\n            disposition: mode.disposition,\n            flags: OPEN_REPARSE_POINT | WRITE_THROUGH,\n            operation: mode.operation,\n        },\n    )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-open-leaf"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-LEAF-METADATA",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 3165,
+        "conditions": [
+          "calls.metadata(&file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-leaf-metadata"
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-FLOW-LEAF-ADMISSION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/windows_open.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open_leaf",
+        "kind": "try_propagation",
+        "start_byte": 3276,
+        "conditions": [
+          "check_leaf(file_type, metadata.regular, metadata.attributes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_open.rs",
+          "name": "open_stops_at_each_failure_and_releases_all_acquired_handles"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-flow-leaf-admission"
       ]
     }
   ],

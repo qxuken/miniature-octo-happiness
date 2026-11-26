@@ -37,6 +37,8 @@ mod windows_admission;
 #[cfg(any(windows, test))]
 mod windows_io;
 #[cfg(any(windows, test))]
+mod windows_open;
+#[cfg(any(windows, test))]
 mod windows_path;
 #[cfg(any(windows, test))]
 mod windows_rng;

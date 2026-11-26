@@ -1,13 +1,10 @@
 //! Exclusive, write-through regular files on local NTFS.
 use super::ByteStore;
 use super::NativeIoOperation;
-use super::windows_admission::{
-    GENERIC_READ, OPEN_EXISTING, check_directory, check_leaf, check_volume, leaf_open,
-};
+use super::windows_admission::check_volume;
 use super::windows_io::{Lease, os_error, own_open_handle};
-use super::windows_path::{
-    append_leaf, canonical_drive, parent_path, read_path, validate_leaf, validate_path,
-};
+use super::windows_open::{FileCalls, FileMetadata, Open, open_leaf};
+use super::windows_path::{validate_leaf, validate_path};
 use super::windows_rng::identity_with;
 use crate::{AllocatorHandle, Error, Result};
 use std::{
@@ -23,11 +20,6 @@ use std::{
     ptr,
 };
 
-const BACKUP_SEMANTICS: u32 = 0x0200_0000;
-const OPEN_REPARSE_POINT: u32 = 0x0020_0000;
-const WRITE_THROUGH: u32 = 0x8000_0000;
-const SHARE_READ_WRITE: u32 = 3;
-const SHARE_DELETE: u32 = 4;
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn CreateFileW(
@@ -77,35 +69,78 @@ fn drive(path: &Path) -> Result<Option<u8>> {
     }
 }
 
-fn open_native(
-    path: &[u16],
-    access: u32,
-    share: u32,
-    disposition: u32,
-    flags: u32,
-    operation: NativeIoOperation,
-) -> Result<File> {
-    // SAFETY: callers pass a NUL-terminated path. Null security and template
-    // arguments select a non-inheritable handle and default file attributes.
-    let handle = unsafe {
-        CreateFileW(
-            path.as_ptr(),
-            access,
-            share,
-            ptr::null(),
-            disposition,
-            flags,
-            ptr::null_mut(),
-        )
-    };
-    own_open_handle(handle, operation, io::Error::last_os_error, |handle| {
-        // SAFETY: CreateFileW returned a new owned handle.
-        unsafe { File::from_raw_handle(handle) }
-    })
-}
+struct NativeFileCalls;
 
-fn path_error() -> Error {
-    os_error(NativeIoOperation::OpenDirectory, io::Error::last_os_error())
+impl FileCalls for NativeFileCalls {
+    type Handle = File;
+
+    fn resolve(&mut self, input: &[u16], out: &mut [u16]) -> u32 {
+        // SAFETY: input ends in NUL and out is writable for its full length.
+        unsafe {
+            GetFullPathNameW(
+                input.as_ptr(),
+                out.len() as u32,
+                out.as_mut_ptr(),
+                ptr::null_mut(),
+            )
+        }
+    }
+
+    fn canonical(&mut self, file: &File, out: &mut [u16]) -> u32 {
+        // SAFETY: file stays open and out is writable for its full length.
+        // Zero selects the normalized path with the DOS drive name.
+        unsafe {
+            GetFinalPathNameByHandleW(file.as_raw_handle(), out.as_mut_ptr(), out.len() as u32, 0)
+        }
+    }
+
+    fn path_error() -> Error {
+        os_error(NativeIoOperation::OpenDirectory, io::Error::last_os_error())
+    }
+
+    fn open(&mut self, path: &[u16], options: Open) -> Result<File> {
+        // SAFETY: The path is NUL terminated. Null security and template
+        // select a non-inheritable handle and default file attributes.
+        let handle = unsafe {
+            CreateFileW(
+                path.as_ptr(),
+                options.access,
+                options.share,
+                ptr::null(),
+                options.disposition,
+                options.flags,
+                ptr::null_mut(),
+            )
+        };
+        own_open_handle(
+            handle,
+            options.operation,
+            io::Error::last_os_error,
+            |handle| {
+                // SAFETY: CreateFileW returned a new owned handle.
+                unsafe { File::from_raw_handle(handle) }
+            },
+        )
+    }
+
+    fn metadata(&mut self, file: &File) -> Result<FileMetadata> {
+        file.metadata()
+            .map_err(|error| os_error(NativeIoOperation::Metadata, error))
+            .map(|metadata| FileMetadata {
+                directory: metadata.is_dir(),
+                regular: metadata.is_file(),
+                attributes: metadata.file_attributes(),
+            })
+    }
+
+    fn volume(&mut self, parent: &File, drive: u8) -> Result<()> {
+        check_native_volume(parent, drive)
+    }
+
+    fn file_type(&mut self, file: &File) -> u32 {
+        // SAFETY: file stays open for GetFileType.
+        unsafe { GetFileType(file.as_raw_handle()) }
+    }
 }
 
 fn check_native_volume(parent: &File, drive: u8) -> Result<()> {
@@ -177,82 +212,15 @@ impl FileStore {
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(Path::new("."));
-        let mut path = parent_path(
+        open_leaf(
             parent.as_os_str().encode_wide(),
+            name.encode_wide(),
+            create,
+            writable,
             allocator,
-            |input, out| {
-                // SAFETY: input ends in NUL and out is writable for its full length.
-                unsafe {
-                    GetFullPathNameW(
-                        input.as_ptr(),
-                        out.len() as u32,
-                        out.as_mut_ptr(),
-                        ptr::null_mut(),
-                    )
-                }
-            },
-            path_error,
-        )?;
-        let lookup = open_native(
-            &path,
-            0,
-            SHARE_READ_WRITE | SHARE_DELETE,
-            OPEN_EXISTING,
-            BACKUP_SEMANTICS,
-            NativeIoOperation::OpenDirectory,
-        )?;
-        read_path(
-            &mut path,
-            |out| {
-                // SAFETY: lookup is open and out is writable for its full length.
-                // Zero selects the normalized path with the DOS drive name.
-                unsafe {
-                    GetFinalPathNameByHandleW(
-                        lookup.as_raw_handle(),
-                        out.as_mut_ptr(),
-                        out.len() as u32,
-                        0,
-                    )
-                }
-            },
-            path_error,
-        )?;
-        drop(lookup);
-        let letter = canonical_drive(&path)?;
-        let directory = open_native(
-            &path,
-            GENERIC_READ,
-            SHARE_READ_WRITE,
-            OPEN_EXISTING,
-            BACKUP_SEMANTICS,
-            NativeIoOperation::OpenDirectory,
-        )?;
-        let metadata = directory
-            .metadata()
-            .map_err(|error| os_error(NativeIoOperation::Metadata, error))?;
-        check_directory(metadata.is_dir(), metadata.file_attributes())?;
-        check_native_volume(&directory, letter)?;
-
-        // Canonicalizing the parent gives an extended-length path. The final
-        // component is checked separately and opened without following a link.
-        append_leaf(&mut path, name.encode_wide())?;
-        let mode = leaf_open(create, writable);
-        let file = open_native(
-            &path,
-            mode.access,
-            0,
-            mode.disposition,
-            OPEN_REPARSE_POINT | WRITE_THROUGH,
-            mode.operation,
-        )?;
-        drop(path);
-        let metadata = file
-            .metadata()
-            .map_err(|error| os_error(NativeIoOperation::Metadata, error))?;
-        // SAFETY: the handle is open for the duration of GetFileType.
-        let file_type = unsafe { GetFileType(file.as_raw_handle()) };
-        check_leaf(file_type, metadata.is_file(), metadata.file_attributes())?;
-        Ok(Self {
+            &mut NativeFileCalls,
+        )
+        .map(|file| Self {
             lease: Lease::Open(file),
         })
     }
@@ -319,9 +287,14 @@ mod pathname_decisions {
         }
         for path in [r"\\server\share\file.db", r"\\.\device"] {
             assert_eq!(drive(Path::new(path)), Err(Error::UnsupportedPlatform));
+            assert_eq!(
+                FileStore::open(path).err(),
+                Some(Error::UnsupportedPlatform)
+            );
         }
         for path in [
             "",
+            "C:",
             "x ",
             "x.",
             "x/",
