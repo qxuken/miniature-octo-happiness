@@ -84,6 +84,10 @@ struct PausedCopy {
     file: FileStore,
     pause: Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>,
 }
+
+// This is a deadlock watchdog for real native flushes on shared runners.
+const NATIVE_EXPORT_WATCHDOG: Duration = Duration::from_secs(60);
+
 impl ByteStore for PausedCopy {
     fn lock(&mut self) -> weekend_db::Result<()> {
         self.file.lock()
@@ -103,8 +107,8 @@ impl ByteStore for PausedCopy {
     fn sync(&mut self) -> weekend_db::Result<()> {
         self.file.sync()?;
         if let Some((arrived, resume)) = self.pause.take() {
-            arrived.send(()).unwrap();
-            resume.recv_timeout(Duration::from_secs(10)).unwrap();
+            arrived.send(()).map_err(|_| Error::Io)?;
+            resume.recv().map_err(|_| Error::Io)?;
         }
         Ok(())
     }
@@ -180,22 +184,37 @@ fn live_export_pins_old_roots_while_the_native_source_changes() {
         file: FileStore::create(&export_path).unwrap(),
         pause: Some((arrived, resumed)),
     };
+    let completed_publications = AtomicU64::new(0);
     let (mut export, latest, replacement) = std::thread::scope(|scope| {
+        // This scope owns the sender so unwind also releases the destination.
+        let resume = resume;
         let capture = scope.spawn(|| primary.export_live_to(&db, copy, limits));
-        at_sync.recv_timeout(Duration::from_secs(10)).unwrap();
+        at_sync
+            .recv_timeout(NATIVE_EXPORT_WATCHDOG)
+            .expect("destination did not reach its first durable sync");
         let (done, finished) = mpsc::channel();
         let db = &db;
+        let completed = &completed_publications;
         let writer = scope.spawn(move || {
             put(db, 3);
+            completed.store(1, Ordering::Relaxed);
             db.release_retained(retained).unwrap();
+            completed.store(2, Ordering::Relaxed);
             let replacement = db.retain_snapshot(&db.snapshot()).unwrap();
+            completed.store(3, Ordering::Relaxed);
             let _ = db.create_collection().unwrap();
+            completed.store(4, Ordering::Relaxed);
             done.send((db.snapshot().revision(), replacement)).unwrap();
         });
-        let result = finished.recv_timeout(Duration::from_secs(5));
-        resume.send(()).unwrap();
+        let result = finished.recv_timeout(NATIVE_EXPORT_WATCHDOG);
+        let completed_while_paused = completed_publications.load(Ordering::Relaxed);
+        resume.send(()).expect("destination exited before release");
         writer.join().unwrap();
-        let (latest, replacement) = result.expect("source waited for a destination sync");
+        let (latest, replacement) = result.unwrap_or_else(|error| {
+            panic!(
+                "source completed {completed_while_paused}/4 publications while the destination was paused: {error:?}"
+            )
+        });
         (capture.join().unwrap().unwrap(), latest, replacement)
     });
     assert_eq!(export.descriptor(), descriptor);
