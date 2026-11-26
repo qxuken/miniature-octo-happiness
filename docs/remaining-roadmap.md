@@ -2664,3 +2664,16 @@ each have independent predicate checks. Each profile passed 22 tests
 and detected all 17 mutations on macOS and Docker Linux/ext4.
 The audit closes 14 tooling records and leaves 7,370 tooling gaps.
 [Supervisor result ledger](decisions/supervisor-result-pairs-current.md)
+
+### TLS connection-refusal fixture
+
+The Ubuntu job at `c44c26d` received ConnectionReset after the
+refusal test released its port. Rebinding the same port reproduced
+the failure locally. At `9e50334`, the fixture supplies a refusal at
+the socket-opening boundary and checks its kind, diagnostic, address
+and timeout. Existing loopback tests cover native dialing.
+
+The corrected source passed 196 macOS and 197 Docker Linux tests per
+profile, including each binary and the live-month example. Both
+platforms caught all three refusal mutations in both profiles.
+[Socket-refusal ledger](decisions/tls-connect-refusal-current.md)

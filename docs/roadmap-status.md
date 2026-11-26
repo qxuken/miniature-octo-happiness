@@ -128,6 +128,12 @@ At `24b6e34`, both Unix hosts passed 22 supervisor tests and caught all
 leaves 7,370 tooling gaps.
 [Supervisor result qualification](decisions/supervisor-result-pairs-current.md)
 
+The Ubuntu native `c44c26d` run caught a loopback port-reuse race in
+the refusal fixture. The corrected source `9e50334` passed 196 macOS and
+197 Docker Linux tests per profile and detected all three refusal
+mutations on both hosts. Hosted follow-up remains pending.
+[Socket-refusal qualification](decisions/tls-connect-refusal-current.md)
+
 | Gate | Progress and remaining evidence |
 |---|---|
 | Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |

@@ -14,6 +14,18 @@ optimized repetitions.
 
 [Original Ubuntu job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45756615197/job/139696612741)
 
+## Qualification
+
+Frozen source `9e50334d202c8a860e0295a4cd9b11b79db5e24e` used Rust 1.100.0. Each profile passed
+196 tests on macOS arm64 and 197 on Docker Linux arm64/ext4. The Study
+binary, snapshot binary and live-month example each caught its refusal
+mutation on both platforms. Windows MSVC x64 linked ten test
+executables in each profile. Hosted verification of this fix is pending.
+
+Fresh extraction verified the original and directed failure logs, the
+corrected test, the intended mutation failures and the exact source
+copies. [Frozen source and evidence checksums](tls-connect-refusal-9e50334.sha256)
+
 ## Carried source records
 
 | Source | SHA-256 |

@@ -471,7 +471,8 @@
     "docs/decisions/windows-open-flow-ee67459.sha256": "0010a04678335a378e44dad73309a7e91ff0adca4a1cd367b0d176b29b8e5269",
     "docs/decisions/supervisor-result-pairs-current.md": "dc575ecee8bf53af16f4c7b5c4b70dc0d9eb8f89bfab629fab8d3ce8f1b40d48",
     "docs/decisions/supervisor-result-pairs-24b6e34.sha256": "f3fb6df47cf29d6882eb91d4144f7095ef88ea9d2769c0ea76effb07be7ff0b9",
-    "docs/decisions/tls-connect-refusal-current.md": "4486c9d67e738e28185d48e8a718470f6240e4decfd5ea39a0ea2874b8d1c2d7"
+    "docs/decisions/tls-connect-refusal-current.md": "3f626f862cefaec86370e53c1af828085ee6c7459ec5bfbec56e8411020c0c4b",
+    "docs/decisions/tls-connect-refusal-9e50334.sha256": "0d507bee1d8e475f53563e8de7f0f8af1562f6db50e27b1f4eb0899cd3fed411"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
