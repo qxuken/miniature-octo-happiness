@@ -2448,7 +2448,8 @@ A delayed writer reproduces the old timeout and passes with the revised
 fixture. A deliberately held source lock still makes the overlap assertion
 fail. Both macOS and Docker Linux/ext4 profiles passed 11 replication tests
 and caught all nine controls. The Windows x64 test executable linked per
-profile, with native execution pending.
+profile. At `0f15e45`, the hosted Windows minimum-Rust job passed and
+its archived debug and release logs confirm the overlap test ran.
 [Native overlap qualification](replication-operations.md#native-overlap-watchdog)
 
 ### Sequenced submission failures and retry
@@ -2511,3 +2512,19 @@ per profile. Native execution of this batch remains pending. The audit
 accounts for 20 runtime records, including three introduced by the
 refactor, and leaves 127 runtime and 7,458 tooling gaps.
 [Coordinator lifecycle ledger](decisions/coordinator-service-lifecycle-current.md)
+
+### Legacy coordinator protocol boundaries
+
+At `e25f2f9`, the coordinator verifies frame termination, partial read
+errors, command shape and the identifier alternatives. Three selected
+allocator refusals preserve the prior receipt and the exact durable image.
+A retry commits once and replays after reopen. An imported maximum
+revision rejects a new ID with Exhausted and still replays an existing
+receipt.
+
+Each macOS and Docker Linux/ext4 profile passed 73 coordinator tests,
+55 standalone fuzz-library tests and all 40 mutation controls across
+both targets. Three Windows x64 test executables linked in each profile.
+Native execution remains pending. The audit closes 15 runtime and 17
+tooling records, leaving 112 runtime and 7,441 tooling gaps.
+[Legacy protocol ledger](decisions/coordinator-legacy-boundaries-current.md)

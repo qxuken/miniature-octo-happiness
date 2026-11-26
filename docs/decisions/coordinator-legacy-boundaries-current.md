@@ -20,6 +20,33 @@ The standalone target is eligible for the two exact scoped rows below.
 The rows carry the standalone target name and current file pin, and the
 standalone target retains its tooling scope.
 
+## Qualification
+
+Frozen source `e25f2f9565464dd815a448dc2a596b02cbb0a633` used Rust 1.100.0.
+Each debug and release profile on arm64 macOS and Docker Linux/ext4
+passed 53 coordinator unit tests, 20 coordinator integration tests and
+55 standalone fuzz-library tests. Two macOS and three Linux workload
+tests remained opt-in. Strict Clippy passed for both Cargo targets.
+The coordinator unit and integration binaries and the fuzz-library
+test binary linked for Windows MSVC x64 in both profiles. Native
+Windows execution remains pending for this source.
+
+Each profile detected 20 mutations per target, including 30 new
+and ten existing controls across both targets. Fresh extraction
+checked the exact test failures, successful baselines, 70 supervised
+commands and 1,026 restored source hashes per campaign. Reconciliation
+found no remaining source records without a disposition in the legacy
+protocol. This closed 15 runtime and 17 tooling records. The repository
+still has 112 runtime gaps, 7,441 tooling gaps and 5,070 blind spots.
+
+The first macOS attempt stopped when the shell rejected an empty
+optional argument array. The next run supplied the common selectors
+in a nonempty array. On the first frozen source, strict Clippy found
+that the legacy and sequenced tests each loaded the same allocator and
+checksum modules. The final source loads both modules once from the
+parent. The production code in both files stayed byte-identical.
+[Frozen source and evidence checksums](coordinator-legacy-boundaries-e25f2f9.sha256)
+
 ## Coordinator source records
 
 | Source | SHA-256 |

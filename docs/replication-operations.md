@@ -704,5 +704,15 @@ The unmodified `f7d1db3` suite passed 11 tests per profile on macOS arm64
 and Docker Linux arm64/ext4, with one maintenance test ignored. Both
 profiles caught all nine linked replication integration mutations on each
 platform. Strict Clippy passed. The Windows x64 test executable cross-linked
-in both profiles. Native execution of this fixture is pending.
+in both profiles.
 [Frozen source and evidence checksums](decisions/native-export-overlap-f7d1db3.sha256)
+
+The earlier failing Windows MSVC minimum-Rust job passed on PR #82 head
+`0f15e4512c982a2d27515e2eb9f393abcc1bc943`. The tested merge
+`e6760292c9bfcba0cd502364738c770f4b19686b` has the same tree as that head.
+The archived debug and release workspace logs both record
+`live_export_pins_old_roots_while_the_native_source_changes` passing.
+The Windows evidence ZIP SHA-256 is
+`7f6485ea3000c53daca8299211eb6c20c2433b4b61d1c03b2f7c3497cc2365a2`.
+[Hosted Windows minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241636/job/139639898280)
+and [checksummed archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241636/artifacts/15081556336).

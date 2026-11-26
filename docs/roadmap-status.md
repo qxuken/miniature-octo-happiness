@@ -80,6 +80,14 @@ rerun then exposed overlapping coordinator storage fixtures and real socket
 deadlines; the corrected fixture passes native Windows in both profiles, as
 recorded in the R1 report. Each hosted result retains its exact source.
 
+At `e25f2f9`, all legacy coordinator protocol records have source
+dispositions in both Cargo targets. Each macOS and Docker Linux/ext4
+profile passed 128 tests and caught 40 named mutations across both
+targets. The current audit leaves 112 runtime and 7,441 tooling gaps.
+Native Windows execution for this batch and the compiler/delegated
+coverage obligation remain open.
+[Legacy protocol qualification](decisions/coordinator-legacy-boundaries-current.md)
+
 | Gate | Progress and remaining evidence |
 |---|---|
 | Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |
