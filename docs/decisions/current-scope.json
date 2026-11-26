@@ -23,7 +23,7 @@
     "apps/write-coordinator/src/main.rs": "0baa2da45ecc666867adbf652fc95958edefe1ac0523c76d96934b69e7b5517b",
     "apps/write-coordinator/src/native.rs": "1891fbd97bff686d9486424a69be983ad9c5d92bec2aee161fbc77f073f667f0",
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
-    "apps/write-coordinator/src/native/protocol.rs": "a4a86e7cfc549405c55cdce86a33c9ff10751e91aae1ecb65c402d466b6e9f36",
+    "apps/write-coordinator/src/native/protocol.rs": "d987550248dbba747bd98d535284d3ca334a19238f9b511e7e07e8bcd39f325d",
     "apps/write-coordinator/src/native/sequenced.rs": "4c8b7d2c5408e5b19d57943f317d3bad7efa1da3188cb6538027d9c259f4f2c5",
     "apps/write-coordinator/src/native/service.rs": "d895230b5e4321bea46aaa21d1c11d20c53ef1202969ff2b622e1daf38c15375",
     "apps/write-coordinator/src/native/stop.rs": "45f687f71f7a7bdb1a5bb37e6056c19f7999f260131fb56d35fe70b74261632d",
@@ -298,8 +298,8 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/coordinator-windows-oracle.json": "82279f7eac55d1acca0e44c6606e5ffc6bb93a1d7190219714ca56e1213dc65a",
-    "xtask/tests/mutations.json": "57f0bf1167d8ed7a6fe088b80a69c320dff6ee9ed0f548a132fe9030adba5b9f",
+    "xtask/tests/coordinator-windows-oracle.json": "40b82ff319dd53e1ae5f0c7212d1a845a462f6ebff41decdda5e2016d253bb84",
+    "xtask/tests/mutations.json": "9d9ab93d029667bb3bc4c5e38db319f2d15beae2f2c45d676e2d387510f62b60",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -448,7 +448,8 @@
     "docs/decisions/coordinator-sequenced-requests-current.md": "f7831f501b18e1bfcd7b25321153d90eec58a2ee50ff4fd6f5989aea938dd3bf",
     "docs/decisions/coordinator-cli-native-current.md": "b428a1fd22001f7beef09ba97fb5224bbcd9c3979dd4d43c6018f1fee328ecf5",
     "docs/decisions/coordinator-service-lifecycle-current.md": "813a06ebded9626181dd8374ed72e22df1f8d68acb18081337d4ac69b7176239",
-    "docs/decisions/coordinator-service-lifecycle-b3a2a18.sha256": "a2ac828f8b2c09fb2990384b18383f963e7a9d4b4d4cc0062e5a31e0afdad3b8"
+    "docs/decisions/coordinator-service-lifecycle-b3a2a18.sha256": "a2ac828f8b2c09fb2990384b18383f963e7a9d4b4d4cc0062e5a31e0afdad3b8",
+    "docs/decisions/coordinator-legacy-boundaries-current.md": "b3787f624876b339175037a55e66195369e81b477541a7f2e3d858143192dbdc"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -985,7 +986,8 @@
         "docs/decisions/coordinator-sequenced-submit-current.md",
         "docs/decisions/coordinator-sequenced-requests-current.md",
         "docs/decisions/coordinator-cli-native-current.md",
-        "docs/decisions/coordinator-service-lifecycle-current.md"
+        "docs/decisions/coordinator-service-lifecycle-current.md",
+        "docs/decisions/coordinator-legacy-boundaries-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -40727,6 +40729,910 @@
           "outcome": false
         }
       ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-AUTH-PREFIX",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "authorize",
+        "kind": "try_propagation",
+        "start_byte": 458,
+        "conditions": [
+          "request.strip_prefix(\"auth \")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-auth-prefix"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-AUTH-SEPARATOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "authorize",
+        "kind": "try_propagation",
+        "start_byte": 475,
+        "conditions": [
+          "request.strip_prefix(\"auth \")?.split_once(' ')"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-auth-separator"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-READ-CUTOFF",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "read_line_from",
+        "kind": "try_propagation",
+        "start_byte": 960,
+        "conditions": [
+          "before_read()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-read-cutoff"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-READ-EOF",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "read_line_from",
+        "kind": "if",
+        "start_byte": 999,
+        "conditions": [
+          "reader.read(&mut byte)? == 0"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-read-eof"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-READ-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "read_line_from",
+        "kind": "try_propagation",
+        "start_byte": 1024,
+        "conditions": [
+          "reader.read(&mut byte)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-read-error"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-READ-NEWLINE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "read_line_from",
+        "kind": "if",
+        "start_byte": 1070,
+        "conditions": [
+          "byte[0] == b'\\n'"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-read-newline"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-SET-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2881,
+        "conditions": [
+          "db.unsigned(value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_selected_allocator_refusals_preserve_image_and_retry"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-set-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-RECEIPT-COUNT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 4865,
+        "conditions": [
+          "tx.count(collection)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_selected_allocator_refusals_preserve_image_and_retry"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-receipt-count"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-REVISION-EXHAUSTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 4994,
+        "conditions": [
+          "revision.checked_add(1).ok_or(Error::Exhausted)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_identified_write_refuses_exhausted_revision"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-revision-exhaustion"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-IDENTIFIED-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 5281,
+        "conditions": [
+          "db.unsigned(value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_selected_allocator_refusals_preserve_image_and_retry"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-identified-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-ID-LENGTH-SHORT-CIRCUIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "short_circuit_or",
+        "start_byte": 3361,
+        "conditions": [
+          "id.is_empty()",
+          "id.len() > 32"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "request_identifier_and_recovery_admission"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-receipt-app-identifier-empty",
+        "r1-legacy-coordinator-receipt-app-identifier-width"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-ID-TWO-BYTE-ALTERNATIVES",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "short_circuit_or",
+        "start_byte": 3457,
+        "conditions": [
+          "b.is_ascii_alphanumeric()",
+          "b == b'-'"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "request_identifier_and_recovery_admission"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-id-alphanumeric",
+        "r1-legacy-coordinator-boundary-app-id-hyphen"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-APP-ID-THREE-BYTE-ALTERNATIVES",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "short_circuit_or",
+        "start_byte": 3457,
+        "conditions": [
+          "b.is_ascii_alphanumeric()",
+          "b == b'-'",
+          "b == b'_'"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "request_identifier_and_recovery_admission"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-app-id-alphanumeric",
+        "r1-legacy-coordinator-boundary-app-id-hyphen",
+        "r1-legacy-coordinator-boundary-app-id-underscore"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-AUTH-PREFIX",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "authorize",
+        "kind": "try_propagation",
+        "start_byte": 458,
+        "conditions": [
+          "request.strip_prefix(\"auth \")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-auth-prefix"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-AUTH-SEPARATOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "authorize",
+        "kind": "try_propagation",
+        "start_byte": 475,
+        "conditions": [
+          "request.strip_prefix(\"auth \")?.split_once(' ')"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-auth-separator"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-READ-CUTOFF",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "read_line_from",
+        "kind": "try_propagation",
+        "start_byte": 960,
+        "conditions": [
+          "before_read()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-read-cutoff"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-READ-EOF",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "read_line_from",
+        "kind": "if",
+        "start_byte": 999,
+        "conditions": [
+          "reader.read(&mut byte)? == 0"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-read-eof"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-READ-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "read_line_from",
+        "kind": "try_propagation",
+        "start_byte": 1024,
+        "conditions": [
+          "reader.read(&mut byte)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-read-error"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-READ-NEWLINE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "read_line_from",
+        "kind": "if",
+        "start_byte": 1070,
+        "conditions": [
+          "byte[0] == b'\\n'"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-read-newline"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-SET-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2881,
+        "conditions": [
+          "db.unsigned(value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_selected_allocator_refusals_preserve_image_and_retry"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-set-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-RECEIPT-COUNT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 4865,
+        "conditions": [
+          "tx.count(collection)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_selected_allocator_refusals_preserve_image_and_retry"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-receipt-count"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-REVISION-EXHAUSTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 4994,
+        "conditions": [
+          "revision.checked_add(1).ok_or(Error::Exhausted)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_identified_write_refuses_exhausted_revision"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-revision-exhaustion"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-IDENTIFIED-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 5281,
+        "conditions": [
+          "db.unsigned(value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_selected_allocator_refusals_preserve_image_and_retry"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-identified-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-ID-LENGTH-SHORT-CIRCUIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "short_circuit_or",
+        "start_byte": 3361,
+        "conditions": [
+          "id.is_empty()",
+          "id.len() > 32"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "request_identifier_and_recovery_admission"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-receipt-fuzz-identifier-empty",
+        "r1-legacy-coordinator-receipt-fuzz-identifier-width"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-ID-TWO-BYTE-ALTERNATIVES",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "short_circuit_or",
+        "start_byte": 3457,
+        "conditions": [
+          "b.is_ascii_alphanumeric()",
+          "b == b'-'"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "request_identifier_and_recovery_admission"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-id-alphanumeric",
+        "r1-legacy-coordinator-boundary-fuzz-id-hyphen"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-ID-THREE-BYTE-ALTERNATIVES",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "short_circuit_or",
+        "start_byte": 3457,
+        "conditions": [
+          "b.is_ascii_alphanumeric()",
+          "b == b'-'",
+          "b == b'_'"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "request_identifier_and_recovery_admission"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-id-alphanumeric",
+        "r1-legacy-coordinator-boundary-fuzz-id-hyphen",
+        "r1-legacy-coordinator-boundary-fuzz-id-underscore"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-AUTH-LENGTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "authorize",
+        "kind": "if",
+        "start_byte": 482,
+        "conditions": [
+          "candidate.len() != secret.len()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-auth-length"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-BOUNDARY-FUZZ-READ-LIMIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "read_line_from",
+        "kind": "while",
+        "start_byte": 908,
+        "conditions": [
+          "bytes.len() < MAX_LINE"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-boundary-fuzz-read-limit"
+      ]
     }
   ],
   "cargo_scope": {
@@ -42345,6 +43251,7 @@
   ],
   "historical_targets": [
     "study-peer::study-peer",
+    "weekend-db-fuzz::weekend_db_fuzz",
     "weekend-db-macros::weekend_db_macros",
     "weekend-db-typed::weekend_db_typed",
     "weekend-db::benchmark",
