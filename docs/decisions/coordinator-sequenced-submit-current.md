@@ -65,6 +65,11 @@ request and lookup fixtures at `2ea321e`.
 | --- | --- |
 | `apps/write-coordinator/src/native/sequenced.rs` | `7c0ded9fd3380747be331b51a468a4d17254017fb438a6a1c5f8293bc31deebb` |
 | `apps/write-coordinator/src/native/sequenced.rs` | `4c8b7d2c5408e5b19d57943f317d3bad7efa1da3188cb6538027d9c259f4f2c5` |
+| `apps/write-coordinator/src/native/sequenced.rs` | `05b48dac35ba15d3dd70ccb32c39cfec7913f3ae81d25e8792af52738cfa7ad2` |
+
+The second source pin reflects sharing the test allocator and checksum
+modules with the legacy protocol. The production bytes and positions
+are unchanged.
 
 | Status | Target | Position | Bytes | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
