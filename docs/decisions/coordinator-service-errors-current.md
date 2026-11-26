@@ -18,7 +18,7 @@ the connection workers and the database owner.
 Fault callbacks exercise the same error propagation and cleanup as the
 real listener. Native coverage includes operator stop, short frames,
 service startup, queue saturation and the real stdout failure path.
-Platform stop-registration and readiness records remain open.
+[Platform stop and readiness follow-up](coordinator-platform-signals-current.md)
 
 ## Qualification
 

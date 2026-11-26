@@ -18,6 +18,26 @@ The Windows result and callback logic also executes in portable unit tests.
 Native Windows operator-stop and listener execution provide the platform
 evidence for the Win32 calls at the linked boundary.
 
+## Qualification
+
+Frozen source `6855f58b28ab0c80ba6004e7b2164f4b1cce5fee` used Rust 1.100.0.
+The coordinator passed 69 unit tests and 23 integration tests on arm64 macOS
+and Docker Linux/ext4 in debug and release. Two macOS and three Linux workload
+tests remained opt-in. Replication passed 74 tests on macOS and 75 on Linux
+in each profile, with one opt-in Linux storage test. Both packages passed
+strict Clippy. Seven test executables linked for Windows MSVC x64 in both
+profiles. Native execution remains pending for this source.
+
+Each platform and profile detected all 12 mutations. The coordinator
+campaign checked ten mutations and 39 supervised commands. The
+replication campaign checked two mutations and 12 supervised commands.
+Fresh extraction verified each named failure, original passing baseline,
+command retirement and 1,034 restored source hashes per campaign.
+Reconciliation closes 11 platform records and leaves 76 runtime and
+7,441 tooling gaps. The remaining runtime records are in shared TLS and
+Windows storage.
+[Frozen source and evidence checksums](coordinator-platform-signals-6855f58.sha256)
+
 ## Coordinator source records
 
 | Source | SHA-256 |

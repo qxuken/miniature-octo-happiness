@@ -455,9 +455,10 @@
     "docs/decisions/coordinator-init-8040d89.sha256": "983b4d5289ad1b76a00897db71f93c14ee362f630a7bcffbe462c92e08129754",
     "docs/decisions/coordinator-client-io-current.md": "26d39453123777a648199a556985bceb624b9a81f5ccd877145e51917701246e",
     "docs/decisions/coordinator-client-io-bce6c3b.sha256": "e20aee8e523a90bac9ee306514208752183261e11edf11ddef1776fbed7b4a21",
-    "docs/decisions/coordinator-service-errors-current.md": "31140d2f3257739156e33e331e0a752fc25a94bd63feb19c2333d64e84e91f07",
+    "docs/decisions/coordinator-service-errors-current.md": "f4b39f4e307013c646523b2726ea4f33a071085e1aa2e9e2955477fc5a39ac13",
     "docs/decisions/coordinator-service-errors-9a403fa.sha256": "767e74cabb0c5a8ade2fc83b2d4b7cfb0b8823b6fabd38717ca4167ea7f84428",
-    "docs/decisions/coordinator-platform-signals-current.md": "e8be90cc4a513f4ec0fa74177d6c4d6a37679b5b78eb38de706e391b554de91d"
+    "docs/decisions/coordinator-platform-signals-current.md": "79e545320c4c6ddd666885ae5f537ff8cb7c1cd0db5741e7363e3cfb91f8a1a2",
+    "docs/decisions/coordinator-platform-signals-6855f58.sha256": "85c0d6ddfb3923cac4e8e1b58ed28c8f7ba185043faacc9800d06104b3019aee"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

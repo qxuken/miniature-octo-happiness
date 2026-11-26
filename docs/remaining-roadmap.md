@@ -2583,3 +2583,17 @@ per profile. Native execution remains pending. All source records in
 the service module have dispositions. The audit leaves 87 runtime and
 7,441 tooling gaps across the repository.
 [Service error ledger](decisions/coordinator-service-errors-current.md)
+
+### Platform stop and shared listener readiness
+
+At `6855f58`, each listener binary verifies native idle and ready sockets
+and both poll status decoders. The coordinator's Unix registration tests
+verify rollback after a failed second install and removal of both real
+handlers after a normal drop. Portable tests cover detached and attached
+console registration, both supported events and conditional removal.
+
+Each profile passed 166 tests on macOS and 167 on Docker Linux/ext4.
+Both hosts caught all 12 mutations. Seven Windows x64 test executables
+linked per profile. Native Windows execution is pending. The audit leaves
+76 runtime gaps in shared TLS and Windows storage, with 7,441 tooling gaps.
+[Platform signals ledger](decisions/coordinator-platform-signals-current.md)

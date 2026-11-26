@@ -80,15 +80,15 @@ rerun then exposed overlapping coordinator storage fixtures and real socket
 deadlines; the corrected fixture passes native Windows in both profiles, as
 recorded in the R1 report. Each hosted result retains its exact source.
 
-All legacy protocol, native coordinator CLI and coordinator service
-records have source dispositions. The latest `9a403fa` audit passed
-141 tests and caught all 35 service mutations per profile on macOS
-and Docker Linux/ext4. The current audit leaves 87 runtime and 7,441
-tooling gaps. Native Windows execution for this source and the compiler
-and delegated coverage obligations remain open. Earlier lifecycle and
-legacy coordinator tests passed on the Windows minimum-Rust lane at
-`908f3c5`.
-[Service fault qualification](decisions/coordinator-service-errors-current.md)
+All legacy protocol, native coordinator CLI, service, stop and shared
+listener source records have dispositions. The latest `6855f58` audit
+passed 166 tests on macOS and 167 on Docker Linux/ext4 per profile, with
+all 12 controls detected. The current audit leaves 76 runtime gaps in
+shared TLS and Windows storage, plus 7,441 tooling gaps. Native Windows
+execution for this source and the compiler and delegated coverage
+obligations remain open. Earlier lifecycle and legacy coordinator tests
+passed on the Windows minimum-Rust lane at `908f3c5`.
+[Platform stop and readiness qualification](decisions/coordinator-platform-signals-current.md)
 and [hosted follow-up](decisions/coordinator-client-io-current.md#hosted-windows-evidence-for-earlier-batches).
 
 | Gate | Progress and remaining evidence |
