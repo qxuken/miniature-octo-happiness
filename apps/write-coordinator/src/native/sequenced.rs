@@ -317,6 +317,247 @@ mod tests {
     }
 
     #[test]
+    fn sequenced_reads_preserve_dispatch_and_storage_errors() {
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(disk.clone(), [7; 16], Limits::default()).unwrap();
+        let before = disk.durable_image().unwrap();
+        assert_eq!(handle(&mut db, "receipt 0"), Err(Error::NotFound));
+        assert_eq!(disk.durable_image().unwrap(), before);
+        initialize(&db).unwrap();
+        let identity = hex(&[7; 16]);
+        let before = disk.durable_image().unwrap();
+        for (input, reply) in [
+            ("get".to_owned(), "value 3 0".to_owned()),
+            ("receipt 0".to_owned(), "receipt 0".to_owned()),
+            ("identity".to_owned(), format!("identity {identity}")),
+            (format!("journal-get {identity}"), "value 3 0".to_owned()),
+            (
+                format!("journal-receipt {identity} 0"),
+                "receipt 0".to_owned(),
+            ),
+            (
+                format!("journal-check {identity} 0"),
+                "checkpoint 3 0 -".to_owned(),
+            ),
+        ] {
+            assert_eq!(handle(&mut db, &input), Ok(reply), "{input}");
+        }
+        for input in [
+            "",
+            "get extra",
+            "unknown",
+            "receipt invalid",
+            "receipt 1024",
+        ] {
+            assert_eq!(handle(&mut db, input), Err(Error::Invalid), "{input}");
+        }
+        assert_eq!(disk.durable_image().unwrap(), before);
+
+        let collection = db.collection_id(DATA_COLLECTION);
+        let mut tx = db.begin();
+        tx.put(
+            collection,
+            &slot_key("0").unwrap(),
+            &db.unsigned(1).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(tx.commit(), Ok(4));
+        drop(tx);
+        let before = disk.durable_image().unwrap();
+        for input in [
+            "receipt 0".to_owned(),
+            format!("journal-receipt {identity} 0"),
+            format!("journal-check {identity} 0"),
+        ] {
+            assert_eq!(handle(&mut db, &input), Err(Error::Corrupt), "{input}");
+        }
+        assert_eq!(disk.durable_image().unwrap(), before);
+
+        let mut tx = db.begin();
+        tx.delete(collection, KEY).unwrap();
+        assert_eq!(tx.commit(), Ok(5));
+        drop(tx);
+        let before = disk.durable_image().unwrap();
+        assert_eq!(
+            handle(&mut db, &format!("journal-check {identity} 0")),
+            Err(Error::NotFound)
+        );
+        assert_eq!(db.snapshot().revision(), 5);
+        assert_eq!(disk.durable_image().unwrap(), before);
+    }
+
+    #[test]
+    fn sequenced_requests_check_store_identity_before_operands() {
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(disk.clone(), [7; 16], Limits::default()).unwrap();
+        initialize(&db).unwrap();
+        let before = disk.durable_image().unwrap();
+        let foreign = hex(&[8; 16]);
+        for (identity, error) in [
+            (foreign.as_str(), Error::ForeignStore),
+            ("bad", Error::Invalid),
+        ] {
+            for input in [
+                format!("journal-get {identity}"),
+                format!("journal-receipt {identity} invalid"),
+                format!("journal-check {identity} invalid"),
+                format!("journal-set {identity} invalid bad - bad bad"),
+            ] {
+                assert_eq!(handle(&mut db, &input), Err(error), "{input}");
+            }
+        }
+        assert_eq!(db.snapshot().revision(), 3);
+        assert_eq!(disk.durable_image().unwrap(), before);
+
+        let mut without_storage = Database::new().unwrap();
+        initialize(&without_storage).unwrap();
+        let input = format!("journal-get {}", hex(&[7; 16]));
+        assert_eq!(handle(&mut without_storage, &input), Err(Error::Invalid));
+        assert_eq!(handle(&mut without_storage, "get"), Ok("value 3 0".into()));
+    }
+
+    #[test]
+    fn sequenced_write_fields_reject_invalid_operands_before_submission() {
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(disk.clone(), [7; 16], Limits::default()).unwrap();
+        initialize(&db).unwrap();
+        let identity = hex(&[7; 16]);
+        assert_eq!(
+            handle(&mut db, &format!("journal-set {identity} 0 1 - 3 12")),
+            Ok("committed 4".into())
+        );
+        let receipt = Receipt {
+            sequence: 1,
+            expected: 3,
+            value: 12,
+            revision: 4,
+        };
+        let previous = hex(&receipt.encode());
+        let mut wrong_version = receipt.encode();
+        wrong_version[0] = 2;
+        let wrong_version = hex(&wrong_version);
+        let journal = ["journal-set", &identity, "0", "2", &previous, "4", "30"];
+        let plain = ["set-seq", "0", "2", "4", "30"];
+        let before = disk.durable_image().unwrap();
+        for (index, replacement) in [
+            (2, "bad-slot"),
+            (2, "1024"),
+            (3, "bad-sequence"),
+            (4, "bad-predecessor"),
+            (4, wrong_version.as_str()),
+            (5, "bad-revision"),
+            (6, "18446744073709551616"),
+        ] {
+            let mut input = journal;
+            input[index] = replacement;
+            let input = input.join(" ");
+            assert_eq!(handle(&mut db, &input), Err(Error::Invalid), "{input}");
+        }
+        for (index, replacement) in [
+            (1, "bad-slot"),
+            (1, "1024"),
+            (2, "bad-sequence"),
+            (3, "bad-revision"),
+            (4, "18446744073709551616"),
+        ] {
+            let mut input = plain;
+            input[index] = replacement;
+            let input = input.join(" ");
+            assert_eq!(handle(&mut db, &input), Err(Error::Invalid), "{input}");
+        }
+        assert_eq!(handle(&mut db, "receipt 0"), Ok("receipt 1 3 12 4".into()));
+        assert_eq!(handle(&mut db, "get"), Ok("value 4 12".into()));
+        assert_eq!(disk.durable_image().unwrap(), before);
+        assert_eq!(
+            handle(&mut db, &journal.join(" ")),
+            Ok("committed 5".into())
+        );
+        assert_eq!(
+            handle(&mut db, "set-seq 0 3 5 40"),
+            Ok("committed 6".into())
+        );
+        let latest = Receipt {
+            sequence: 3,
+            expected: 5,
+            value: 40,
+            revision: 6,
+        };
+        assert_eq!(
+            handle(&mut db, &format!("journal-check {identity} 0")),
+            Ok(format!("checkpoint 6 40 {}", hex(&latest.encode())))
+        );
+    }
+
+    #[test]
+    fn sequenced_hex_checks_width_and_both_digits() {
+        let bytes = [
+            0x00, 0x01, 0x02, 0x03, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x20, 0xf1, 0xfe,
+            0xff, 0x00,
+        ];
+        let encoded = "00010203456789abcdef1020f1feff00";
+        assert_eq!(hex(&[]), "");
+        assert_eq!(hex(&bytes), encoded);
+        assert_eq!(unhex::<16>(encoded), Ok(bytes));
+        for input in [
+            encoded[..30].to_owned(),
+            format!("{encoded}00"),
+            format!("X{}", &encoded[1..]),
+            format!("0X{}", &encoded[2..]),
+        ] {
+            assert_eq!(unhex::<16>(&input), Err(Error::Invalid), "{input}");
+        }
+    }
+
+    #[test]
+    fn initialization_counter_allocation_refusal_keeps_the_seed_unpublished() {
+        use super::allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let probe_allocator = Arc::new(TestAllocator::default());
+        let probe = Database::create_on_with_options(
+            SimulatedDisk::new().unwrap(),
+            [7; 16],
+            probe_allocator.options(),
+        )
+        .unwrap();
+        let start = probe_allocator.requests();
+        let format = probe.create_collection().unwrap();
+        probe.create_collection().unwrap();
+        let mut tx = probe.begin();
+        tx.put(format, FORMAT_KEY, &probe.bytes(FORMAT).unwrap())
+            .unwrap();
+        let allowed = probe_allocator.requests() - start;
+        drop(tx);
+
+        let allocator = Arc::new(TestAllocator::default());
+        let disk = SimulatedDisk::new().unwrap();
+        let db =
+            Database::create_on_with_options(disk.clone(), [7; 16], allocator.options()).unwrap();
+        assert_eq!(
+            allocator.with_refusal(allowed, || initialize(&db)),
+            Err(Error::OutOfMemory)
+        );
+        assert_eq!(db.snapshot().revision(), 2);
+        assert_eq!(allocator.live_bytes(), probe_allocator.live_bytes());
+        drop(db);
+        disk.crash(Crash::DropAll).unwrap();
+        let reopened = open(&disk);
+        assert_eq!(admit(&reopened), Err(Error::UnsupportedFormat));
+        assert_eq!(
+            reopened
+                .snapshot()
+                .count(reopened.collection_id(FORMAT_COLLECTION)),
+            Ok(0)
+        );
+        assert_eq!(
+            reopened
+                .snapshot()
+                .count(reopened.collection_id(DATA_COLLECTION)),
+            Ok(0)
+        );
+    }
+
+    #[test]
     fn sequenced_submit_preserves_counter_read_errors() {
         let disk = SimulatedDisk::new().unwrap();
         let mut db = Database::create_on(disk.clone(), [7; 16], Limits::default()).unwrap();
