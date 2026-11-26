@@ -140,6 +140,12 @@ the refusal fixture. The corrected source `9e50334` passed 196 macOS and
 mutations on both hosts. Hosted follow-up remains pending.
 [Socket-refusal qualification](decisions/tls-connect-refusal-current.md)
 
+The Ubuntu native job for `9e5ebee` passed the socket-refusal regression
+in both Study and snapshot binaries in debug and release. The archived
+job log verifies the four results and identifies the exact merge tree.
+[Hosted Ubuntu verification](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45765188872/job/139724314903)
+[Hosted evidence checksums](decisions/hosted-tls-refusal-9e5ebee.sha256)
+
 The Windows minimum-Rust job for the same tree passed the debug retry
 regression, then failed in release after TLS admission when the follower
 returned `Io`. Its command exited with a test failure and verified cleanup.
@@ -175,6 +181,22 @@ error when stdout cannot accept their response. The regression verifies
 the child result and cleanup report independently. Both Unix hosts
 caught the two response controls in both profiles.
 [Supervisor response delivery qualification](decisions/supervisor-cli-response-current.md)
+
+The hosted `9e5ebee` fuzz smoke job passed 55 debug replay tests and
+20,842 AddressSanitizer executions over all 22 manifest targets and 253
+committed seeds. The two counts below the 1,000-run cap were 441 for
+schema/index migration and 401 for adversarial tree keys. A fresh
+source bundle and artifact restoration reproduced the hosted verification
+byte for byte. The verified merge tree matches the PR head.
+[Hosted fuzz run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45765188623)
+[Artifact checksums](decisions/hosted-fuzz-9e5ebee.sha256)
+
+At `92ff7bf`, a trace requires both output digests before it can
+qualify. The evidence records the exact exit and verified cleanup when
+one digest is missing. Both Unix hosts passed their xtask unit and
+supervisor integration suites and caught six mutations in each profile.
+Source reconciliation leaves 7,340 tooling gaps.
+[Trace log evidence](decisions/trace-log-evidence-current.md)
 
 | Gate | Progress and remaining evidence |
 |---|---|

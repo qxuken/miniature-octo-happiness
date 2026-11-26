@@ -483,7 +483,8 @@
     "docs/decisions/supervisor-proc-identity-05e99c6.sha256": "6a1b5603334b900a7bd20b10a18eb6ec2f09061ecd22944043ef7865b11b690c",
     "docs/decisions/supervisor-cli-response-current.md": "4c7dd9437733ca28c7255190fbc0b516a87e76c276072e62862d90c6b170db66",
     "docs/decisions/supervisor-cli-response-4a3ea5d.sha256": "04ac223dfdae8ef21b3beb7fe9cdff472f1c8ca674217804a58b3dab93b07f20",
-    "docs/decisions/trace-log-evidence-current.md": "f2f7e6a18b51a4bf9a6a123c27a279dc29340ac38b2b418974e79b93e74f0ce6"
+    "docs/decisions/trace-log-evidence-current.md": "8800cf81ec8749a006f95d79d968dc9c7c53021e10a93d9059f3cbee4e2b104e",
+    "docs/decisions/trace-log-evidence-92ff7bf.sha256": "390ccff60da87baf010eb7e61aec788f34f27626092a15bf32e0776155f2a945"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -552,7 +553,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 344,
-    "xtask::xtask": 5337
+    "xtask::xtask": 5339
   },
   "groups": [
     {

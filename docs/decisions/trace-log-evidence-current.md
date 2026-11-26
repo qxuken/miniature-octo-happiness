@@ -24,3 +24,20 @@ checks the original error in the returned result and evidence row.
 | E | xtask::xtask | xtask/src/trace_process.rs:63:5– | 1861..1864 | for_iteration | admit | Each output can independently already exist. Preflight preserves its bytes, leaves the other path absent, and returns the exact admission error. |
 | D | xtask::xtask | xtask/src/trace_process.rs:170:15– | 5198..5203 | match | execute | Successful commands record the report and both digests. Admission failure records the command and the exact error without a report. |
 | C | xtask::xtask | xtask/src/trace_process.rs:174:16– | 5349..5352 | pattern_test | execute | The Some or None pattern and its enclosing if observe the same digest-error option. |
+
+## Qualification
+
+Frozen `92ff7bfb5db8522bdec0d4ca23b3a3c06e6225f4` used Rust 1.100.0. Each macOS
+profile passed 257 xtask unit tests, with three existing ignores, and
+six supervisor integration tests. Docker Linux arm64/ext4 passed 289
+unit tests, with one existing ignore, and the same six integration tests.
+Both hosts detected six mutations in each profile. Strict Clippy passed
+on both hosts and for Windows MSVC x64. The Windows unit executable linked
+in each profile.
+
+Fresh extraction verified the false-success reproduction, 24 supervised
+commands and 1,062 source hashes per campaign. The source audit detected the
+two new decisions and rejected the stale target count. The corrected
+manifest records both decisions, closes three earlier tooling gaps and
+leaves 7,340 open.
+[Frozen source and evidence checksums](trace-log-evidence-92ff7bf.sha256)

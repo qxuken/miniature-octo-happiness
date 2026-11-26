@@ -2678,6 +2678,11 @@ profile, including each binary and the live-month example. Both
 platforms caught all three refusal mutations in both profiles.
 [Socket-refusal ledger](decisions/tls-connect-refusal-current.md)
 
+The native Ubuntu follow-up at `9e5ebee` passed the refusal test in both
+Study and snapshot binaries in both profiles. The captured job log and
+its checkout identity verify those four results.
+[Hosted socket-refusal checksums](decisions/hosted-tls-refusal-9e5ebee.sha256)
+
 ### Native Windows path entry
 
 The exact `c44c26d` tree passed the drive-prefix and early-path
@@ -2719,3 +2724,16 @@ caught both response-delivery mutations in debug and release.
 The targeted Windows rerun passed debug and release on the original
 tree. The initial retry error's operation remains unresolved.
 [Windows rerun evidence checksums](decisions/windows-msrv-retry-c44c26d-attempt2.sha256)
+
+### Trace log evidence and hosted fuzz smoke
+
+The trace runner rejects a missing output digest while preserving the
+recorded exit and process cleanup. Both Unix hosts caught all six directed
+mutations in both profiles, including either missing log and the original
+admission error. The audit now has 7,340 tooling gaps.
+[Trace log evidence ledger](decisions/trace-log-evidence-current.md)
+
+The hosted `9e5ebee` smoke run passed all 22 fuzz targets and 55 debug
+replay tests. Its restored evidence independently reproduces all 20,842
+observed executions. Release candidate fuzz qualification remains open.
+[Hosted fuzz evidence checksums](decisions/hosted-fuzz-9e5ebee.sha256)
