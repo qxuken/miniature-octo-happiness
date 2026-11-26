@@ -2353,3 +2353,17 @@ The review accounts for all 103 source records in the native CLI
 dispatcher, including two caller invariants. Reconciliation leaves
 326 runtime and 7,468 tooling gaps across the repository.
 [Snapshot command effects ledger](decisions/snapshot-command-effects-current.md)
+
+### Snapshot listener admission scheduling
+
+At `1662c2f`, deterministic cases exercise readiness and accept retries,
+preservation of native errors, launch refusal, bounded handshake and ready
+queues, and panic precedence during worker retirement. The tests verify
+socket closure and join real threads. macOS and Docker Linux/ext4 passed
+debug and release and caught all 18 controls per campaign. Five Windows
+x64 executables cross-linked per profile. Native execution remains open.
+
+The review reconciles 18 of the 29 listener admission records. The remaining
+11 track specific scheduler interleavings and the native follower recovery
+path. Reconciliation leaves 308 runtime and 7,468 tooling gaps across the
+repository. [Snapshot listener admission ledger](decisions/snapshot-admission-scheduling-current.md)

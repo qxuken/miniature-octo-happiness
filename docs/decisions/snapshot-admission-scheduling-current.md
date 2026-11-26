@@ -27,6 +27,23 @@ error still need their own evidence. Simulator recovery tests remain scoped
 to their storage backend. The launch refusals are injected at the builder
 boundary and preserve the original error through the same launch pipeline.
 
+## Qualification
+
+Frozen source `1662c2f408f08f3ab691315fe99b306d1d483cd8` ran with
+Rust 1.100.0 and locked dependencies.
+
+| Platform | Debug and release, per profile |
+| --- | --- |
+| macOS arm64 | 63 snapshot CLI tests passed and 11 core replication tests passed with one ignored. The exact tests detected all 18 controls. |
+| Docker Linux arm64/ext4 | 64 snapshot CLI tests passed with one ignored and 11 core replication tests passed with one ignored. The exact tests detected all 18 controls. |
+| Windows x64/MSVC | Five CLI test executables cross-linked. Native execution of this source remains open. |
+
+Clippy with warnings denied passed on macOS and Linux. Fresh extraction
+verified the exact failed assertions, 64 supervised commands and 1,005
+restored source inputs per campaign. Of 29 source records in this module,
+11 remain open. The repository inventory has 308 runtime and 7,468
+tooling gaps. [Frozen campaign checksums](snapshot-admission-scheduling-1662c2f.sha256)
+
 ## Exact source rows
 
 | Source | SHA-256 |
