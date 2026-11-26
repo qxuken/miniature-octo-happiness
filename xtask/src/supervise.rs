@@ -1094,6 +1094,108 @@ mod unix {
     #[cfg(test)]
     mod controls {
         use super::*;
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn proc_identity_reports_the_first_malformed_field() {
+            let rejected: &[(&str, &[u8], &str)] = &[
+                ("opening delimiter", b"42 name) R", "missing comm"),
+                ("closing delimiter", b"42 (name R", "missing comm end"),
+                (
+                    "delimiter order",
+                    b"42 ) R (",
+                    "invalid process name delimiters",
+                ),
+                (
+                    "delimiter space",
+                    b"42 (name)R",
+                    "invalid process name delimiters",
+                ),
+                ("PID mismatch", b"43 (name) R", "process ID changed"),
+                ("absent state", b"42 (name) ", "missing process state"),
+                ("state width", b"42 (name) RR", "invalid process state"),
+                ("state alphabet", b"42 (name) 8", "invalid process state"),
+                ("absent parent", b"42 (name) R", "missing parent PID"),
+                ("absent group", b"42 (name) R 1", "missing process group"),
+                (
+                    "absent start",
+                    b"42 (name) R 1 42",
+                    "missing process starttime",
+                ),
+            ];
+            for &(label, bytes, expected) in rejected {
+                let error = proc_identity(bytes, 42).expect_err(label);
+                assert_eq!(error.to_string(), expected, "{label}");
+            }
+            assert_eq!(
+                proc_identity(b"0 (name) R", 0).unwrap_err().to_string(),
+                "process ID changed",
+                "nonpositive PID"
+            );
+
+            for (label, bytes) in [
+                ("UTF-8 prefix", &b"\xff (name) R"[..]),
+                ("UTF-8 suffix", &b"42 (name) \xff"[..]),
+            ] {
+                let error = proc_identity(bytes, 42).expect_err(label);
+                assert!(error.is::<std::str::Utf8Error>(), "{label}: {error:#}");
+            }
+
+            let bad_start = format!("42 (name) R 1 42 {}-1", "0 ".repeat(16));
+            for (label, bytes) in [
+                ("PID parse", &b"x (name) R"[..]),
+                ("parent parse", &b"42 (name) R x 42"[..]),
+                ("group parse", &b"42 (name) R 1 x"[..]),
+                ("start parse", bad_start.as_bytes()),
+            ] {
+                let error = proc_identity(bytes, 42).expect_err(label);
+                assert!(error.is::<std::num::ParseIntError>(), "{label}: {error:#}");
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn proc_identity_distinguishes_reaped_and_live_rows() {
+            let stat = |parent, group| {
+                let mut bytes = b"42 (main (space) \xff\ncomm)) R ".to_vec();
+                bytes.extend_from_slice(
+                    format!("{parent} {group} {}{} 123 456\n", "0 ".repeat(16), u64::MAX)
+                        .as_bytes(),
+                );
+                bytes
+            };
+            let row = proc_identity(&stat(1, 42), 42).unwrap().unwrap();
+            assert_eq!((row.pid, row.parent, row.group), (42, 1, 42));
+            assert_eq!(row.start, u64::MAX.to_string());
+            assert_eq!(row.state, "R");
+            assert!(proc_identity(&stat(0, -1), 42).unwrap().is_none());
+            let row = proc_identity(&stat(0, 0), 42).unwrap().unwrap();
+            assert_eq!((row.parent, row.group), (0, 0));
+            for (parent, group) in [(1, -1), (-1, 42)] {
+                let error = proc_identity(&stat(parent, group), 42).unwrap_err();
+                assert_eq!(
+                    error.to_string(),
+                    "negative process identity",
+                    "{parent}, {group}"
+                );
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn proc_identity_matches_the_running_observer() {
+            let pid = std::process::id() as i32;
+            let raw = fs::read("/proc/self/stat").unwrap();
+            let direct = proc_identity(&raw, pid).unwrap().unwrap();
+            let inventory = table().unwrap();
+            let observed = &inventory[&pid];
+            assert_eq!(
+                (observed.pid, observed.parent, observed.group),
+                (pid, direct.parent, direct.group)
+            );
+            assert_eq!(observed.start, direct.start);
+        }
+
         #[test]
         fn discovery_walks_known_ancestors_and_never_reuses_a_reaped_root_pid() {
             let row = |pid, parent, group, start: &str| Identity {

@@ -214,7 +214,7 @@
     "xtask/src/sqlite_baseline.rs": "f09c50fade656d716ecbf14643a7a9bceb9433059b95c3a7fb2eabaa9f94b00d",
     "xtask/src/study_soak.rs": "430b55111e7145ab89fe9ce1ec5cfe94280dbb18b11087c4164a78e818cf650b",
     "xtask/src/study_upgrade.rs": "85934f92de2681263e1fc7c756432a29fbb7eaa537e4222bc8a9610804597e89",
-    "xtask/src/supervise.rs": "42643cd3bb9502d938b47af99dd8940fac642e57097c53b7728bc8d6f87021c2",
+    "xtask/src/supervise.rs": "0e4c2f9c5df44fd47c4ff1abbe27439d5e201928cbef9d54d572620ccb9e8a41",
     "xtask/src/support.rs": "ab81f996e6e6e19a44180b3a350176859a343b4a5b34f04bbf24789b62c67dd1",
     "xtask/src/toolchain.rs": "a0e44e9f90a3d893fa9402a64e4c860e44f0e3029020ce9f8395978fa92fa7b5",
     "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
@@ -300,7 +300,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "d8d2b4c4a537ab068179d01a280aca4ba764cd7c4959ca320d12a2eb82e72cd3",
+    "xtask/tests/mutations.json": "73b694a638545d1117d7f8f0e1847262e0c1771df89635fd36c1b4f66179ccc5",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -478,7 +478,8 @@
     "docs/decisions/supervisor-output-flow-current.md": "d9dc1e132d48a69ecc3ff3488601b0a4372026dd18e8829371371c743d58f5c5",
     "docs/decisions/supervisor-output-flow-52605e4.sha256": "0813f3adf79087127899c4364bdf75231a9ed84021369e10443d8924164a2e9f",
     "docs/decisions/study-retry-diagnostic-1ec259c.sha256": "1107a15e59443a11f7099e167a68b4e12dd65f573aff14d2f7d1162bb788bee4",
-    "docs/decisions/study-retry-diagnostic-current.md": "269829306be8806db1ba30ba420473e3e55cb8b6459715ce020e16916da44d8f"
+    "docs/decisions/study-retry-diagnostic-current.md": "269829306be8806db1ba30ba420473e3e55cb8b6459715ce020e16916da44d8f",
+    "docs/decisions/supervisor-proc-identity-current.md": "d94c6fd80f1e3d5a2fc321bc689cce10862809eedcf44a8fb4233ba1c17b3049"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -1099,7 +1100,8 @@
         "xtask/tests/fixtures/failing-cargo.sh",
         "docs/decisions/apfs-detach-current.md",
         "docs/decisions/supervisor-result-pairs-current.md",
-        "docs/decisions/supervisor-output-flow-current.md"
+        "docs/decisions/supervisor-output-flow-current.md",
+        "docs/decisions/supervisor-proc-identity-current.md"
       ],
       "residual": "Helper and native negative controls remain scoped evidence, not individual independence pairs for all tooling records. Standalone workspaces and consumers are now inventoried in their own target contexts; their records and macro/compiled boundaries remain explicit obligations."
     },
@@ -47449,6 +47451,378 @@
       "mutations": [
         "r1-supervisor-output-trace-any-exit",
         "r1-supervisor-output-trace-zero-exit"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-OPENING-DELIMITER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 15459,
+        "conditions": [
+          "bytes\n            .iter()\n            .position(|&b| b == b'(')\n            .context(\"missing comm\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-opening-delimiter"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-CLOSING-DELIMITER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 15585,
+        "conditions": [
+          "bytes\n            .iter()\n            .rposition(|&b| b == b')')\n            .context(\"missing comm end\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-closing-delimiter"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-PREFIX-UTF8",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 15788,
+        "conditions": [
+          "std::str::from_utf8(&bytes[..begin])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-prefix-utf8"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-PID-PARSE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 15808,
+        "conditions": [
+          "std::str::from_utf8(&bytes[..begin])?.trim_end().parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-pid-parse"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-SUFFIX-UTF8",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 15941,
+        "conditions": [
+          "std::str::from_utf8(&bytes[end + 2..])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-suffix-utf8"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-STATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 16035,
+        "conditions": [
+          "fields.next().context(\"missing process state\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-state"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-PARENT-FIELD",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 16246,
+        "conditions": [
+          "fields.next().context(\"missing parent PID\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-parent-field"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-PARENT-PARSE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 16255,
+        "conditions": [
+          "fields.next().context(\"missing parent PID\")?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-parent-parse"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-GROUP-FIELD",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 16329,
+        "conditions": [
+          "fields.next().context(\"missing process group\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-group-field"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-GROUP-PARSE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 16338,
+        "conditions": [
+          "fields.next().context(\"missing process group\")?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-group-parse"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-START-FIELD",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 16522,
+        "conditions": [
+          "fields\n            .nth(16)\n            .context(\"missing process starttime\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-start-field"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-START-PARSE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "try_propagation",
+        "start_byte": 16544,
+        "conditions": [
+          "fields\n            .nth(16)\n            .context(\"missing process starttime\")?\n            .parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_reports_the_first_malformed_field"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-start-parse"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-REAPED-IF",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "if",
+        "start_byte": 16707,
+        "conditions": [
+          "parent == 0",
+          "group == -1"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_distinguishes_reaped_and_live_rows"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-reaped-parent",
+        "r1-supervisor-proc-identity-reaped-group"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "SUPERVISOR-PROC-IDENTITY-REAPED-EXPRESSION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "proc_identity",
+        "kind": "short_circuit_and",
+        "start_byte": 16710,
+        "conditions": [
+          "parent == 0",
+          "group == -1"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "proc_identity_distinguishes_reaped_and_live_rows"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-proc-identity-reaped-parent",
+        "r1-supervisor-proc-identity-reaped-group"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
       ]
     }
   ],
