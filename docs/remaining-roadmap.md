@@ -2450,3 +2450,20 @@ fail. Both macOS and Docker Linux/ext4 profiles passed 11 replication tests
 and caught all nine controls. The Windows x64 test executable linked per
 profile, with native execution pending.
 [Native overlap qualification](replication-operations.md#native-overlap-watchdog)
+
+### Sequenced submission failures and retry
+
+At `8ac7503`, a sequenced write at the maximum acknowledged revision
+returns `Exhausted`. A selected allocator refusal and four separate draft
+limits preserve the prior rows and allow a later retry. Forks of the same
+durable image verify unchecked, matching and mismatching predecessors.
+The earlier retirement fault sweep continues to verify complete reopened
+counter and receipt pairs.
+
+Each macOS and Docker Linux/ext4 profile passed 54 coordinator, four
+logical and 48 standalone fuzz-library tests. All 26 controls were caught,
+including both compilation contexts for the same source. Three Windows
+x64 test executables linked per profile. Native execution remains pending.
+Reconciliation covers another 15 runtime and 10 tooling records and leaves
+226 runtime and 7,458 tooling gaps.
+[Sequenced submission ledger](decisions/coordinator-sequenced-submit-current.md)

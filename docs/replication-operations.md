@@ -682,6 +682,10 @@ debug command. The captured log leaves the cause of the delay unresolved.
 [Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45733450473/job/139620886656)
 and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45733450473/artifacts/15077792394).
 
+The separate native Windows job passed the original overlap test and the
+snapshot admission credential fixture in debug and release at `6f0b013`.
+[Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45733450473/job/139620886035).
+
 At `f7d1db3`, the fixture allows 60 seconds for each wait and owns the
 release signal within the test scope. All four source publications must
 complete before that signal. On timeout the fixture records completed

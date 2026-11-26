@@ -443,7 +443,7 @@
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
     "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
     "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
-    "docs/decisions/coordinator-sequenced-submit-current.md": "868222ae54c33cd1b38f41c36f728780c54201bcbf11c82e7d86285416365c8a",
+    "docs/decisions/coordinator-sequenced-submit-current.md": "7eeb7cdaffd07a14a763a7800bd2bbeaac9eb5da84ab54309082b788767a4d41",
     "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6"
   },
   "target_records": {

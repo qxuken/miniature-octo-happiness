@@ -22,9 +22,9 @@ witness barriers, reopening at revision 4 or 5 with a complete counter and
 receipt. The commit inside the assertion remains a separate macro blind spot.
 
 `Predecessor::Unchecked` masks the comparison because there is no bound
-expected predecessor. The two controls independently force an unchecked
-request to perform a comparison and suppress the mismatch rejection for an
-exact request. These provide an enumerated source disposition for the guard
+expected predecessor. One control forces an unchecked request to perform a
+comparison. The other reverses the comparison for exact requests. These
+provide an enumerated source disposition for the guard
 and its pattern and short-circuit records. The validation table records
 the outcomes the code actually evaluates.
 
@@ -33,6 +33,28 @@ the outcomes the code actually evaluates.
 | Unchecked | Masked | Continue |
 | Exact | Equal | Continue |
 | Exact | Different | `Conflict` |
+
+## Qualification
+
+Frozen source `8ac75037511e61aeb08ca6c880446db2c217a4bc` ran with Rust
+1.100.0 and locked dependencies. Each debug and release profile on macOS
+arm64 and Docker Linux arm64/ext4 passed 38 coordinator unit tests, 16
+coordinator integration tests, four logical-image tests and 48 standalone
+fuzz-library tests. Two macOS and three Linux extended workloads remained
+opt-in. Clippy with warnings denied passed in both Cargo targets.
+
+Each campaign detected 13 coordinator and 13 standalone mutations.
+Fresh extraction verified the intended failure assertions, 96 supervised
+commands and 1,018 restored source files per campaign. The two coordinator
+tests and the standalone fuzz-library executable cross-linked for Windows
+x64/MSVC in both profiles. Native execution is pending.
+
+All 15 remaining runtime source records in `submit` have a disposition.
+The standalone target gains 10 named records. Its five pattern, ordering
+and predecessor guard records remain in the tooling queue under the
+current evidence categories. Repository reconciliation leaves 226 runtime
+and 7,458 tooling gaps.
+[Frozen source and evidence checksums](coordinator-sequenced-submit-8ac7503.sha256)
 
 ## Coordinator source records
 
