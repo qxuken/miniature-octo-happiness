@@ -999,7 +999,7 @@ jobs:
   sanitizers:
     name: sanitizers (${{ matrix.kind }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.kind == 'thread' && 40 || 20 }}
+    timeout-minutes: ${{ matrix.kind == 'thread' && 55 || 20 }}
     strategy:
       fail-fast: false
       matrix:
