@@ -8,6 +8,7 @@
 | Startup precedence | With a port already bound, a missing database and each incompatible profile report their own error before bind. A valid database for either profile reaches the original socket error. No readiness line is emitted on failure. |
 | Configuration file admission | Missing metadata preserves `NotFound`. A directory or FIFO rejects before opening. Unix owner-only permissions pass and broader permissions reject. The correct width and hex alphabet are checked independently, with one trailing newline allowed. |
 | Command-line input and reply | EOF exits successfully. A blank line is skipped and trimmed `quit` stops before a later command. Invalid UTF-8 and the native connection error are propagated. A truncated reply returns `InvalidData` and the original diagnostic. |
+| Request framing | The loopback fixture observes the plain request line and the configured form with the expected prefix and bytes. |
 | Reply deadline | An expired deadline preserves the queued line. A live deadline reads that same line. |
 
 The forwarders preserve error text as well as process status. The socket
@@ -19,6 +20,22 @@ The separate inventory rows for faults within initializer publication,
 file I/O after metadata admission, socket setters and writes, worker launch,
 and stdout still require evidence. The delivered binary tests use both input
 and socket paths, with the source decisions tied to the exact target below.
+
+## Qualification
+
+Frozen source `2b204c98c39441bc13b9ea934a7b24bc600a73c8` ran with Rust
+1.100.0 and locked dependencies. Each debug and release profile on macOS
+arm64 and Docker Linux arm64/ext4 passed 45 unit and 19 integration tests.
+Two macOS and three Linux workloads remained opt-in. Both hosts passed
+strict Clippy and detected all 44 mutation controls per profile. The
+freshly extracted archive verifies the expected test and assertion for
+each failure, the supervised command reports and copied source hashes.
+
+The coordinator unit and integration binaries cross-linked for Windows x64
+in both profiles. Native execution remains pending for this source.
+Reconciliation covers 43 CLI runtime and five service startup records,
+leaving 144 runtime and 7,458 tooling gaps.
+[Frozen source and evidence checksums](coordinator-cli-native-2b204c9.sha256)
 
 ## Coordinator source records
 

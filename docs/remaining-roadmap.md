@@ -2482,3 +2482,17 @@ per profile, with native execution pending. The sequenced source file has
 no unclassified runtime decisions. Repository reconciliation leaves 192
 runtime and 7,458 tooling gaps.
 [Sequenced request and lookup ledger](decisions/coordinator-sequenced-requests-current.md)
+
+### Coordinator command line and native startup
+
+At `2b204c9`, the coordinator verifies command and flag pairs, error
+precedence at startup, configuration parsing and client line framing.
+Both initializers preserve an existing image on rejection. A failed
+profile check or bind emits no readiness line. Expired reply input remains
+available to a later read with a live deadline.
+
+Each macOS and Docker Linux/ext4 profile passed 64 tests and all 44 mutation
+controls. Two Windows x64 test executables linked per profile. Native
+execution of this batch remains pending. Another 48 runtime records have
+source dispositions, leaving 144 runtime and 7,458 tooling gaps.
+[Coordinator native CLI ledger](decisions/coordinator-cli-native-current.md)
