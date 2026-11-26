@@ -1510,6 +1510,95 @@ mod unix {
 mod tests {
     use super::*;
     use crate::support::Scratch;
+
+    type ReportChange = (&'static str, fn(&mut Report));
+
+    #[test]
+    fn success_requires_zero_exit_and_verified_cleanup() {
+        let accepted = || Report {
+            returncode: Some(0),
+            cleanup_verified: true,
+            ..Report::default()
+        };
+        assert!(accepted().success());
+        let changes: &[ReportChange] = &[
+            ("zero exit", |r| r.returncode = Some(1)),
+            ("worker failure", |r| r.failure = Some("fixture".into())),
+            ("cleanup failure", |r| {
+                r.cleanup_failure = Some("fixture".into())
+            }),
+            ("cleanup proof", |r| r.cleanup_verified = false),
+        ];
+        for (condition, change) in changes {
+            let mut report = accepted();
+            change(&mut report);
+            assert!(!report.success(), "ordinary success ignored {condition}");
+        }
+    }
+
+    #[test]
+    fn expected_error_requires_positive_code_exact_reason_and_cleanup() {
+        let accepted = |code| Report {
+            returncode: Some(code),
+            failure: Some(format!("child exit Some({code})")),
+            cleanup_verified: true,
+            ..Report::default()
+        };
+        assert!(accepted(42).exited_with_error(42));
+        for code in [0, -libc::SIGKILL] {
+            assert!(
+                !accepted(code).exited_with_error(code),
+                "expected error ignored positive code"
+            );
+        }
+        let changes: &[ReportChange] = &[
+            ("exit code", |r| r.returncode = Some(43)),
+            ("cleanup proof", |r| r.cleanup_verified = false),
+            ("cleanup failure", |r| {
+                r.cleanup_failure = Some("fixture".into())
+            }),
+            ("timeout", |r| r.timed_out = true),
+            ("cancellation", |r| r.cancelled = true),
+            ("explicit stop", |r| r.stopped = true),
+            ("exact reason", |r| {
+                r.failure = Some("child exit Some(43)".into())
+            }),
+        ];
+        for (condition, change) in changes {
+            let mut report = accepted(42);
+            change(&mut report);
+            assert!(
+                !report.exited_with_error(42),
+                "expected error ignored {condition}"
+            );
+        }
+    }
+
+    #[test]
+    fn clean_stop_requires_requested_stop_sigkill_and_verified_cleanup() {
+        let accepted = || Report {
+            stopped: true,
+            returncode: Some(-libc::SIGKILL),
+            cleanup_verified: true,
+            ..Report::default()
+        };
+        assert!(accepted().stopped_cleanly());
+        let changes: &[ReportChange] = &[
+            ("explicit stop", |r| r.stopped = false),
+            ("kill status", |r| r.returncode = Some(-libc::SIGTERM)),
+            ("worker failure", |r| r.failure = Some("fixture".into())),
+            ("cleanup failure", |r| {
+                r.cleanup_failure = Some("fixture".into())
+            }),
+            ("cleanup proof", |r| r.cleanup_verified = false),
+        ];
+        for (condition, change) in changes {
+            let mut report = accepted();
+            change(&mut report);
+            assert!(!report.stopped_cleanly(), "clean stop ignored {condition}");
+        }
+    }
+
     pub(super) fn fixture(body: &str) -> (Scratch, Request) {
         let scratch = Scratch::new(&std::env::temp_dir(), "xtask-supervision").unwrap();
         let request = Request {
