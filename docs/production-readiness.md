@@ -449,6 +449,8 @@ Retain real threaded and cross-process tests on native artifacts.
 The [compound recovery ledger](decisions/compound-recovery-current.md) records
 which memory or I/O failure wins during writable reopen, including exact
 retained and current roots and the next acknowledged commit.
+The [ByteStore conformance test](bytestore-conformance.md) exercises adapter
+leases, short transfers, copy and fresh recovery through the public API.
 
 ## Crash, platform and release qualification
 

@@ -282,7 +282,7 @@
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
     "tests/durability.rs": "dfefb8f8abdc5c6613bd3b80947769f31a2cba5892046437748a7c2d2aa65f79",
     "tests/engine_decisions.rs": "602a92e910290944be5b441b665ac3bd4547b9d6f00a174c51a549cf51a1ded7",
-    "tests/files.rs": "539b7ce0697059082c9240f49ab56c131a25891d3dff0bfa72b3201e51882769",
+    "tests/files.rs": "43eb35eab3e6c0dca33eb7d7c32c4f217ffa637b2dbdc0bf42d8a00ff1c08e37",
     "tests/inspection.rs": "02aaed4526353dbbb1d880c72531678d553a83d7216e0e06a6c78b60812f40c9",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
     "tests/logical.rs": "ef4f3a09a7d51234e588f17f6d995904d681d5ba5ccae07f7a11e76ba7304c9e",
@@ -392,7 +392,8 @@
     "docs/decisions/typed-catalog-current.md": "5e498217efc23dcd2e299041a945ede86752ab62b773a1ef6cadd52d7b805fee",
     "docs/decisions/typed-lookup-current.md": "5737b59d961037bc7a8d703e740f41b0b441ebaf1228c8835408312b4fee8f71",
     "docs/decisions/simulator-survival-current.md": "9b731edf4d3bb656a0aafca2c16e5a1b1126d9d580147cba2e55501559625af2",
-    "tests/bytestore.rs": "63241a465b5cdf73e83baddd8d0fee4eb00bd067cc00bb5cfc21c38b9e4c020b",
+    "tests/bytestore.rs": "40bf48f20083f6dca4ffa29f63284d11e5789dcb142ecc11ab2f5ff5be03a8cd",
+    "tests/support/bytestore_contract.rs": "bf48ba939e043e05e30b6f8d0fb52eac5aa3c947126be1181512477fa7bd4d78",
     "docs/decisions/codec-crc-current.md": "86f5c8ac361be7c5832a232bc2ca37a683f204eab861b1ccfd8905bf31f97bee",
     "docs/decisions/codec-recovery-offsets-current.md": "242563ede2264b216cbba326d7dc4e0d14e86a3608a4374be2232bd28ee79ba5",
     "docs/decisions/memory-growth-current.md": "ed7001d955f500ec2f49cb24053803a25d3ee70c2d3c5a054462b07e8e2a2229",
@@ -700,7 +701,9 @@
         "docs/decisions/compact-copy-current.md",
         "docs/decisions/compound-recovery-current.md",
         "docs/decisions/replica-envelope-current.md",
-        "docs/decisions/windows-open-flow-current.md"
+        "docs/decisions/windows-open-flow-current.md",
+        "tests/bytestore.rs",
+        "tests/support/bytestore_contract.rs"
       ],
       "residual": "Native persistence assumptions and delegated calls remain separate from simulated pairs."
     },
@@ -751,6 +754,7 @@
         "docs/decisions/native-storage.md",
         "docs/native-identity-assurance.md",
         "tests/files.rs",
+        "tests/support/bytestore_contract.rs",
         "tests/compaction.rs",
         "docs/decisions/native-replacement-current.md",
         "docs/decisions/unix-leases-current.md",

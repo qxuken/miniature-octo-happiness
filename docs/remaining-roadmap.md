@@ -2810,3 +2810,13 @@ fuzz and benchmark results. Fresh x64 recovery evidence identifies the
 exact delivered libraries and verifies retained state and retry after
 real full-storage errors. The final release freeze, deployment acceptance
 and off-machine proof custody remain open.
+
+### Custom ByteStore conformance
+
+The [public adapter test](bytestore-conformance.md) runs the same lifecycle
+against an independent short-transfer adapter and the native file adapter.
+Six failed-flush schedules and a successful commit verify the current and
+retained data from durable bytes. Both profiles passed on macOS/APFS and
+Docker Linux/ext4, and both affected integration targets cross-checked for
+Windows. Native Windows execution of this batch and conformance for each
+additional adapter and deployed device remain R5 requirements.
