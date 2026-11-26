@@ -13016,12 +13016,12 @@
     {
       "name": "r1-coordinator-queue-stopping",
       "file": "apps/write-coordinator/src/native/service.rs",
-      "old": "if stopping.load(Relaxed) {\n            break;",
-      "new": "if false {\n            break;",
+      "old": "for request in requests {\n        if stopping.load(Relaxed) {\n            break;",
+      "new": "for request in requests {\n        if false {\n            break;",
       "test": "write-coordinator",
       "target": "--bin",
       "occurrence": 1,
-      "matches": null,
+      "matches": 1,
       "package": "write-coordinator",
       "exact_test": "native::service::tests::shutdown_completes_dispatched_write_and_drops_queued_write"
     },

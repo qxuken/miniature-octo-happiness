@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "82279f7eac55d1acca0e44c6606e5ffc6bb93a1d7190219714ca56e1213dc65a",
-    "xtask/tests/mutations.json": "16c1f28f9bb5889a19a9a97dfbe00f59a22fc3fba8f285b95d5d30eb4bc62cbc",
+    "xtask/tests/mutations.json": "e1c8481fe2b1a0abd2101585b40e71dc031190d5841453d88a41157e0c4994e2",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
