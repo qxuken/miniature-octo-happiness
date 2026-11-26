@@ -2528,3 +2528,24 @@ both targets. Three Windows x64 test executables linked in each profile.
 Native execution remains pending. The audit closes 15 runtime and 17
 tooling records, leaving 112 runtime and 7,441 tooling gaps.
 [Legacy protocol ledger](decisions/coordinator-legacy-boundaries-current.md)
+
+### Coordinator initialization and incomplete image admission
+
+At `8040d89`, both commands use a shared native create-file boundary.
+The legacy simulator faults every observed I/O operation in collection
+creation and counter seeding. Fresh recovery sees revision 0 with no
+collection, revision 1 with an empty collection or revision 2 with one
+counter. A refused allocation and a zero-write draft budget each leave
+the exact collection-only image. The native CLI rejects both incomplete
+roots before binding and preserves their bytes.
+
+Both macOS and Docker Linux/ext4 profiles passed 131 tests and caught
+all 48 startup and CLI mutations. Three Windows x64 test executables
+linked per profile. Native execution remains pending for this source.
+The audit leaves 107 runtime and 7,441 tooling gaps.
+[Initialization ledger](decisions/coordinator-initialization-current.md)
+
+PR #82 head `0f15e45` completed 28 successful checks and one skip before
+the legacy protocol batch was pushed.
+[Engine checks](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241636)
+and [bounded fuzzing](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241641).

@@ -451,7 +451,8 @@
     "docs/decisions/coordinator-service-lifecycle-b3a2a18.sha256": "a2ac828f8b2c09fb2990384b18383f963e7a9d4b4d4cc0062e5a31e0afdad3b8",
     "docs/decisions/coordinator-legacy-boundaries-current.md": "9a0171703d364386dd86386940f698201995f422c3ff75f899b375d2beba3182",
     "docs/decisions/coordinator-legacy-boundaries-e25f2f9.sha256": "58373d985cef1e89f26597aa7df9c7cde35a8b38b7ccabbfc7499b41442506df",
-    "docs/decisions/coordinator-initialization-current.md": "9f4fd0a895da742a0b34bdc7b7583dd8ae1576dd5fee3e4e41514e4cb509d007"
+    "docs/decisions/coordinator-initialization-current.md": "2af183e32daa733162931110184763f7a3c6bed10285c77013fe0d9ef7d62d33",
+    "docs/decisions/coordinator-init-8040d89.sha256": "983b4d5289ad1b76a00897db71f93c14ee362f630a7bcffbe462c92e08129754"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

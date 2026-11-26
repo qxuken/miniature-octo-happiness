@@ -21,6 +21,32 @@ existence and record count. A native process refuses to serve empty or
 unseeded images before bind. The same images reject repeat initialization
 and keep their exact bytes and reopened revisions.
 
+## Qualification
+
+Frozen source `8040d89bf3754b4d670245975c0f1d5f51e62335` used Rust 1.100.0.
+Each debug and release profile on arm64 macOS and Docker Linux/ext4
+passed 55 coordinator unit tests, 21 coordinator integration tests,
+and 55 standalone fuzz-library tests. Two macOS and three Linux
+workload tests remained opt-in. Strict Clippy passed in both targets.
+The coordinator unit and integration binaries and the fuzz-library
+test binary linked for Windows MSVC x64 in both profiles. Native
+Windows execution remains pending for this source.
+
+Each platform and profile detected all 48 named CLI mutations. The four
+new cases check propagation of collection publication, value allocation,
+draft insertion and seed commit failures. The two dispatch controls
+check that the shared create-file path preserves AlreadyExists through
+each command. Archive verification checked each exact baseline and
+mutation, 157 supervised commands and 1,028 restored source hashes
+per campaign.
+
+Reconciliation accounts for five additional runtime records and combines
+the two create-file boundaries into one. It inventories 10,775 decisions
+across 223 files without failures. The remaining queue is 107 runtime
+and 7,441 tooling gaps, including eight runtime rows in the native CLI
+module for credential and client I/O.
+[Frozen source and evidence checksums](coordinator-init-8040d89.sha256)
+
 ## Coordinator source records
 
 | Source | SHA-256 |
