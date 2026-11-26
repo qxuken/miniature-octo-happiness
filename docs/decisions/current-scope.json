@@ -25,7 +25,7 @@
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
     "apps/write-coordinator/src/native/protocol.rs": "e8d3019808a1ba5b676ecbf6ed4724a14e16cf02a534ab43c4f0d3d76cdae952",
     "apps/write-coordinator/src/native/sequenced.rs": "05b48dac35ba15d3dd70ccb32c39cfec7913f3ae81d25e8792af52738cfa7ad2",
-    "apps/write-coordinator/src/native/service.rs": "d895230b5e4321bea46aaa21d1c11d20c53ef1202969ff2b622e1daf38c15375",
+    "apps/write-coordinator/src/native/service.rs": "0d69b2daf8815791a76e3c1374530f343317f2009001adf23f8f599296874a34",
     "apps/write-coordinator/src/native/stop.rs": "45f687f71f7a7bdb1a5bb37e6056c19f7999f260131fb56d35fe70b74261632d",
     "crates/weekend-db-macros/src/lib.rs": "5d0708c15d60b2cdd679fbc0a08a6504caf6f136b90bb32be1c271a63753b9f4",
     "crates/weekend-db-macros/src/model.rs": "fa796e2ebcfbf9acfea6354b9b0ea7533b948c4a2252b5163e8d09b9a6e5c5f9",
@@ -232,7 +232,7 @@
     "apps/weekend-replicate/src/native/tests.rs": "a50bfdb8d5cb0af1d20d178f8e7f640bcd59ba3900b070a576595553865fc7e1",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
-    "apps/write-coordinator/tests/writers.rs": "76eb7621c16485f2d96950ef3e68ebf6070df65c4c80c68ab41667e1a81d980b",
+    "apps/write-coordinator/tests/writers.rs": "f88c7ff42b84ba746d7b67f52b859cad808460f3acf6b9d5d28b68e57691088f",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/migration_allocator.rs": "970fba9fe1555a04d807a069cd56e6e3315f636361584042f60c3ccbe37eba0c",
     "crates/weekend-db-typed/tests/models.rs": "f080864d86f8e5fc63a18c282d3910bd706f23a191b9ee870fcb6647bcefc703",
@@ -298,8 +298,8 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/coordinator-windows-oracle.json": "fd8979ef872c83e3696b04f554e216cc408c9c25be1528a65e75395c687eb421",
-    "xtask/tests/mutations.json": "67323f9e799edc143ef2b834aebdef135631b1edd34598c825c774ca516cb644",
+    "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
+    "xtask/tests/mutations.json": "34e5037caf41d1d158723906ed22a7038d5316add442238289c8c4fa79680def",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -454,7 +454,8 @@
     "docs/decisions/coordinator-initialization-current.md": "2af183e32daa733162931110184763f7a3c6bed10285c77013fe0d9ef7d62d33",
     "docs/decisions/coordinator-init-8040d89.sha256": "983b4d5289ad1b76a00897db71f93c14ee362f630a7bcffbe462c92e08129754",
     "docs/decisions/coordinator-client-io-current.md": "26d39453123777a648199a556985bceb624b9a81f5ccd877145e51917701246e",
-    "docs/decisions/coordinator-client-io-bce6c3b.sha256": "e20aee8e523a90bac9ee306514208752183261e11edf11ddef1776fbed7b4a21"
+    "docs/decisions/coordinator-client-io-bce6c3b.sha256": "e20aee8e523a90bac9ee306514208752183261e11edf11ddef1776fbed7b4a21",
+    "docs/decisions/coordinator-service-errors-current.md": "829317a0cc2354eb151799ef0c3fe6c12b598d779dfe83ec3a753a6beb4bf503"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -994,7 +995,8 @@
         "docs/decisions/coordinator-service-lifecycle-current.md",
         "docs/decisions/coordinator-legacy-boundaries-current.md",
         "docs/decisions/coordinator-initialization-current.md",
-        "docs/decisions/coordinator-client-io-current.md"
+        "docs/decisions/coordinator-client-io-current.md",
+        "docs/decisions/coordinator-service-errors-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -23927,7 +23929,8 @@
         "kind": "if",
         "conditions": [
           "stopping.load(Relaxed)"
-        ]
+        ],
+        "start_byte": 975
       },
       "tests": [
         {
@@ -23963,7 +23966,8 @@
         "kind": "if",
         "conditions": [
           "Instant::now() >= request.deadline"
-        ]
+        ],
+        "start_byte": 1040
       },
       "tests": [
         {
@@ -23999,7 +24003,8 @@
         "kind": "if",
         "conditions": [
           "request.admitted.send(response).is_err()"
-        ]
+        ],
+        "start_byte": 1177
       },
       "tests": [
         {
@@ -31993,9 +31998,9 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve_connection",
+        "owner": "serve_connection_with",
         "kind": "try_propagation",
-        "start_byte": 5706,
+        "start_byte": 8027,
         "conditions": [
           "start\n        .recv_timeout(time_remaining(deadline)?)\n        .map_err(|error| match error {\n            mpsc::RecvTimeoutError::Timeout => io::ErrorKind::TimedOut,\n            mpsc::RecvTimeoutError::Disconnected => io::ErrorKind::ConnectionAborted,\n        })"
         ]
@@ -32017,9 +32022,9 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve_connection",
+        "owner": "serve_connection_with",
         "kind": "try_propagation",
-        "start_byte": 5886,
+        "start_byte": 8207,
         "conditions": [
           "response\n        .recv()\n        .map_err(|_| io::ErrorKind::ConnectionAborted)"
         ]
@@ -40263,9 +40268,9 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve",
+        "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 2027,
+        "start_byte": 2402,
         "conditions": [
           "Database::open_file(path, Limits::default())"
         ]
@@ -40286,9 +40291,9 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve",
+        "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 2171,
+        "start_byte": 2546,
         "conditions": [
           "protocol::state(&db)"
         ]
@@ -40309,9 +40314,9 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve",
+        "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 2288,
+        "start_byte": 2663,
         "conditions": [
           "protocol::sequenced::admit(&db)"
         ]
@@ -40332,9 +40337,9 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve",
+        "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 2393,
+        "start_byte": 2768,
         "conditions": [
           "TcpListener::bind(address)"
         ]
@@ -40415,9 +40420,9 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve",
+        "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 3061,
+        "start_byte": 3445,
         "conditions": [
           "writeln!(io::stdout().lock(), \"ready {}\", listener.local_addr()?)"
         ]
@@ -40438,9 +40443,9 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve",
+        "owner": "serve_connections",
         "kind": "if",
-        "start_byte": 3406,
+        "start_byte": 5697,
         "conditions": [
           "connections.len() == MAX_CONNECTIONS"
         ]
@@ -40475,11 +40480,11 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve_connection",
+        "owner": "serve_connection_with",
         "kind": "try_propagation",
-        "start_byte": 4789,
+        "start_byte": 7110,
         "conditions": [
-          "read_line(&stream, deadline)"
+          "read_request(&stream, deadline)"
         ]
       },
       "tests": [
@@ -40498,9 +40503,9 @@
       "selector": {
         "file": "apps/write-coordinator/src/native/service.rs",
         "target": "write-coordinator::write-coordinator",
-        "owner": "serve_connection",
+        "owner": "serve_connection_with",
         "kind": "let_else",
-        "start_byte": 4928,
+        "start_byte": 7249,
         "conditions": [
           "command"
         ]
@@ -40541,7 +40546,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "next_connection",
         "kind": "while",
-        "start_byte": 6124,
+        "start_byte": 8445,
         "conditions": [
           "!stopping.load(Relaxed)"
         ]
@@ -40578,7 +40583,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "next_connection",
         "kind": "match_guard",
-        "start_byte": 6267,
+        "start_byte": 8588,
         "conditions": [
           "error.kind() == io::ErrorKind::Interrupted"
         ]
@@ -40615,7 +40620,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "next_connection",
         "kind": "if",
-        "start_byte": 6386,
+        "start_byte": 8707,
         "conditions": [
           "stopping.load(Relaxed)"
         ]
@@ -40652,7 +40657,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "next_connection",
         "kind": "match_guard",
-        "start_byte": 6569,
+        "start_byte": 8890,
         "conditions": [
           "matches!(\n                    error.kind(),\n                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted\n                )"
         ]
@@ -40690,7 +40695,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "join_workers",
         "kind": "if",
-        "start_byte": 6963,
+        "start_byte": 9284,
         "conditions": [
           "worker.join().is_err()",
           "result.is_ok()"
@@ -41929,6 +41934,291 @@
       ],
       "mutations": [
         "r1-native-coordinator-cli-plain-request-write"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-STOP-REGISTRATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_with",
+        "kind": "try_propagation",
+        "start_byte": 2301,
+        "conditions": [
+          "register_stop()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "startup_preserves_registration_and_listener_setup_failures"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-stop-registration"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-LISTENER-MODE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_with",
+        "kind": "try_propagation",
+        "start_byte": 2804,
+        "conditions": [
+          "configure_listener(&listener)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "startup_preserves_registration_and_listener_setup_failures"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-listener-mode"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-DATABASE-LAUNCH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_workers",
+        "kind": "try_propagation",
+        "start_byte": 4995,
+        "conditions": [
+          "start_database(pending)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "database_launch_failure_closes_listener_and_queue"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-database-launch"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-LISTENER-NEXT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_connections",
+        "kind": "try_propagation",
+        "start_byte": 5596,
+        "conditions": [
+          "next()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "listener_failures_join_live_workers_and_preserve_the_error"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-listener-next"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-LISTENER-REAP",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_connections",
+        "kind": "try_propagation",
+        "start_byte": 5686,
+        "conditions": [
+          "reap_connections(connections)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "listener_failures_join_live_workers_and_preserve_the_error"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-listener-reap"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-CONNECTION-LAUNCH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_connections",
+        "kind": "try_propagation",
+        "start_byte": 5858,
+        "conditions": [
+          "start_connection(stream, deadline)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "listener_failures_join_live_workers_and_preserve_the_error"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-connection-launch"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-SATURATION-MODE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "refuse_busy",
+        "kind": "if",
+        "start_byte": 6045,
+        "conditions": [
+          "set_nonblocking(&stream).is_ok()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "saturation_sends_a_reply_only_after_nonblocking_is_enabled"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-saturation-mode"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-WORKER-DIAGNOSTIC",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "report_connection",
+        "kind": "if",
+        "start_byte": 6226,
+        "conditions": [
+          "let Err(error) = result"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "connection_reporting_preserves_failure_and_stays_quiet_on_success"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "connection_worker_reports_only_a_failed_request"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-worker-diagnostic"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-CONNECTION-BLOCKING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_connection_with",
+        "kind": "try_propagation",
+        "start_byte": 7031,
+        "conditions": [
+          "set_blocking(&stream)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "connection_setup_failures_leave_the_queue_empty"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-connection-blocking"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-CONNECTION-WRITE-TIMEOUT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_connection_with",
+        "kind": "try_propagation",
+        "start_byte": 7058,
+        "conditions": [
+          "set_timeout(&stream)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "connection_setup_failures_leave_the_queue_empty"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-connection-write-timeout"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-SERVICE-ERROR-ADMISSION-DEADLINE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_connection_with",
+        "kind": "try_propagation",
+        "start_byte": 7817,
+        "conditions": [
+          "time_remaining(deadline)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "deadline_expiring_after_framing_disconnects_pending_admission"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-service-error-admission-deadline"
       ]
     }
   ],
