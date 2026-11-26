@@ -39,6 +39,16 @@ macOS and Docker Linux at `1f3f42a`. The Study guard admits the exact audited
 test-only source change, with twelve mutation detections across both hosts
 and profiles. Stable replay passes 55 cases in each profile on both hosts.
 
+The [extended ASan campaign](fuzz-qualification-1f3f42a.md) completed
+1,425,865 executions across all 22 targets at `1f3f42a`. Fresh extraction
+reproduces the verifier's source and actual completion counts.
+
+The [four-platform delivery report](delivery-checkpoint-2596c57.md)
+verifies all sixteen package profiles on tested merge `2596c57`.
+Two restored verifiers reproduce the package, benchmark and bounded
+fuzz results. The original hosted x64 recovery artifacts are bound to
+the exact delivered libraries.
+
 The [2026-11-18 dependency snapshot](locked-dependency-review-3de695f.md)
 scans all fourteen lockfiles at `3de695f` against frozen RustSec `233155b`
 (1,527 parsed advisories): zero reported vulnerabilities and warnings.

@@ -29,6 +29,11 @@ ASan/fuzz evidence to one tested revision.
 The [later arm64 delivery checkpoint](delivery-checkpoint-1f3f42a.md)
 rebuilds and restores all four feature masks on macOS and Linux. Its native
 consumer loader checks verify the exact libraries from the extracted packages.
+The [extended ASan campaign](fuzz-qualification-1f3f42a.md) binds all 22
+targets and the four stable replay runs to that arm64 checkpoint.
+The [four-platform restore at 2596c57](delivery-checkpoint-2596c57.md)
+binds all sixteen private packages, the bounded ASan run and the small
+benchmark to one tested merge.
 `verify-delivery` checks the debug and release workspace tests in each
 lane and can bind retained release microbenchmark samples to the same
 clean source revision with `--benchmark`. An optional `--fuzz` binds a

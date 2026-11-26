@@ -2792,3 +2792,21 @@ to the test module. Both hosts detect three guard mutations in both
 profiles. Fresh extraction verifies 1,110 profile artifacts and the four
 55-test stable replay runs with 253 unchanged seeds. Exact native Windows
 compatibility and the production version window remain R4 requirements.
+
+### Extended ASan at 1f3f42a
+
+The [extended campaign](fuzz-qualification-1f3f42a.md) exercises all 22
+targets on the same commit as the arm64 delivery and compatibility runs.
+It completed 1,425,865 executions. Fresh extraction verifies all 22
+binaries, the 253 original seeds and each terminal count. The final
+release source and off-machine recovery remain R7 requirements.
+
+### Four-platform private delivery at 2596c57
+
+The [same-source delivery checkpoint](delivery-checkpoint-2596c57.md)
+verifies sixteen packages across macOS and Linux arm64, Linux x64 and
+Windows x64. Both restore verifiers agree on the package, trace, bounded
+fuzz and benchmark results. Fresh x64 recovery evidence identifies the
+exact delivered libraries and verifies retained state and retry after
+real full-storage errors. The final release freeze, deployment acceptance
+and off-machine proof custody remain open.
