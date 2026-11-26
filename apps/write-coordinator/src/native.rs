@@ -82,13 +82,25 @@ pub(super) fn run() -> AppResult<()> {
 struct Secret([u8; 64]);
 impl Secret {
     fn load(path: &Path) -> AppResult<Self> {
+        Self::load_with(
+            path,
+            |path| std::fs::File::open(path),
+            std::fs::File::metadata,
+        )
+    }
+
+    fn load_with<R: Read>(
+        path: &Path,
+        open: impl FnOnce(&Path) -> io::Result<R>,
+        opened_metadata: impl FnOnce(&R) -> io::Result<std::fs::Metadata>,
+    ) -> AppResult<Self> {
         // Configuration lives in a trusted namespace. Reject special files
         // before opening (notably blocking FIFOs), then recheck the handle.
         if !std::fs::metadata(path)?.is_file() {
             return Err("secret must be a regular file".into());
         }
-        let file = std::fs::File::open(path)?;
-        let metadata = file.metadata()?;
+        let file = open(path)?;
+        let metadata = opened_metadata(&file)?;
         if !metadata.is_file() {
             return Err("secret must be a regular file".into());
         }
@@ -166,14 +178,30 @@ fn client(address: SocketAddr, secret: Option<Secret>) -> AppResult<()> {
 }
 
 fn request(address: SocketAddr, secret: Option<&Secret>, command: &str) -> AppResult<String> {
-    let mut stream = TcpStream::connect_timeout(&address, TIMEOUT)?;
-    stream.set_write_timeout(Some(TIMEOUT))?;
+    let stream = TcpStream::connect_timeout(&address, TIMEOUT)?;
+    exchange(
+        stream,
+        |stream| stream.set_write_timeout(Some(TIMEOUT)),
+        |stream| read_line(stream, Instant::now() + TIMEOUT),
+        secret,
+        command,
+    )
+}
+
+fn exchange<W: Write>(
+    mut stream: W,
+    set_timeout: impl FnOnce(&W) -> io::Result<()>,
+    read_reply: impl FnOnce(&W) -> io::Result<String>,
+    secret: Option<&Secret>,
+    command: &str,
+) -> AppResult<String> {
+    set_timeout(&stream)?;
     if let Some(secret) = secret {
         writeln!(stream, "auth {} {command}", std::str::from_utf8(&secret.0)?)?;
     } else {
         writeln!(stream, "{command}")?;
     }
-    Ok(read_line(&stream, Instant::now() + TIMEOUT)?)
+    Ok(read_reply(&stream)?)
 }
 
 #[cfg(test)]
@@ -320,6 +348,8 @@ mod decisions {
 
     #[test]
     fn secret_file_and_loopback_address_admission() {
+        use std::cell::Cell;
+
         let root = std::env::temp_dir().join(format!(
             "coordinator-secret-decisions-{}",
             std::process::id()
@@ -356,6 +386,73 @@ mod decisions {
                 (!good).then_some("secret must contain 64 hexadecimal characters")
             );
         }
+        struct FailedRead<'a>(&'a Cell<usize>);
+        impl Read for FailedRead<'_> {
+            fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+                self.0.set(self.0.get() + 1);
+                Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "fixture read failure",
+                ))
+            }
+        }
+        let reads = Cell::new(0);
+        let open_error = Secret::load_with(
+            &path,
+            |_| {
+                Err::<FailedRead<'_>, _>(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "fixture open failure",
+                ))
+            },
+            |_| panic!("metadata after failed open"),
+        )
+        .err()
+        .expect("failed open was accepted");
+        assert_eq!(
+            open_error.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::PermissionDenied
+        );
+        assert_eq!(open_error.to_string(), "fixture open failure");
+        let bad_metadata = Secret::load_with(
+            &path,
+            |_| Ok(FailedRead(&reads)),
+            |_| {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "fixture handle metadata failure",
+                ))
+            },
+        )
+        .err()
+        .expect("failed metadata was accepted");
+        assert_eq!(
+            bad_metadata.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::NotFound
+        );
+        assert_eq!(bad_metadata.to_string(), "fixture handle metadata failure");
+        let special_handle = Secret::load_with(
+            &path,
+            |_| Ok(FailedRead(&reads)),
+            |_| std::fs::metadata(&root),
+        )
+        .err()
+        .expect("non-file handle was accepted");
+        assert_eq!(special_handle.to_string(), "secret must be a regular file");
+        assert_eq!(reads.get(), 0);
+        let read_error = Secret::load_with(
+            &path,
+            |_| Ok((&b"ab"[..]).chain(FailedRead(&reads))),
+            |_| std::fs::metadata(&path),
+        )
+        .err()
+        .expect("failed read was accepted");
+        assert_eq!(
+            read_error.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+        assert_eq!(read_error.to_string(), "fixture read failure");
+        assert_eq!(reads.get(), 1);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -391,6 +488,64 @@ mod decisions {
             "expected a port number"
         );
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn request_configuration_and_write_failures_stop_before_reply() {
+        let mut bytes = Vec::new();
+        let timeout_error = exchange(
+            &mut bytes,
+            |_| {
+                Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "fixture timeout failure",
+                ))
+            },
+            |_| panic!("reply read after failed timeout configuration"),
+            None,
+            "get",
+        )
+        .unwrap_err();
+        assert_eq!(
+            timeout_error.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::Unsupported
+        );
+        assert_eq!(timeout_error.to_string(), "fixture timeout failure");
+        assert!(bytes.is_empty());
+
+        #[derive(Default)]
+        struct RefusedWrite(usize);
+        impl Write for RefusedWrite {
+            fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+                self.0 += 1;
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionReset,
+                    "fixture request write failure",
+                ))
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                panic!("flush after failed write")
+            }
+        }
+        let secret = Secret([b'a'; 64]);
+        for secret in [None, Some(&secret)] {
+            let mut refused = RefusedWrite::default();
+            let error = exchange(
+                &mut refused,
+                |_| Ok(()),
+                |_| panic!("reply read after failed write"),
+                secret,
+                "get",
+            )
+            .unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<io::Error>().unwrap().kind(),
+                io::ErrorKind::ConnectionReset
+            );
+            assert_eq!(error.to_string(), "fixture request write failure");
+            assert_eq!(refused.0, 1);
+        }
     }
 
     #[test]

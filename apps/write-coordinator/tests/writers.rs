@@ -136,6 +136,19 @@ impl Drop for Process {
     }
 }
 
+fn wait_for_child_output(mut child: Child, event: &str) -> std::process::Output {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while child.try_wait().unwrap().is_none() {
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("process did not exit after {event}");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    child.wait_with_output().unwrap()
+}
+
 fn wait_for_transition(mut observe: impl FnMut() -> String, previous: &str, expected: &str) {
     let deadline = Instant::now() + Duration::from_secs(15);
     loop {
@@ -1671,7 +1684,7 @@ fn readiness_write_error_releases_the_database_lease() {
     let (reader, mut writer) = std::io::pipe().unwrap();
     drop(reader);
     let expected = writer.write_all(b"probe\n").unwrap_err().to_string();
-    let mut child = Command::new(BIN)
+    let child = Command::new(BIN)
         .arg("serve")
         .arg(&path)
         .arg("0")
@@ -1679,19 +1692,7 @@ fn readiness_write_error_releases_the_database_lease() {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let deadline = Instant::now() + Duration::from_secs(15);
-    loop {
-        if child.try_wait().unwrap().is_some() {
-            break;
-        }
-        if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
-            panic!("startup did not exit after losing its readiness pipe");
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    let output = child.wait_with_output().unwrap();
+    let output = wait_for_child_output(child, "losing its readiness pipe");
     assert!(!output.status.success());
     assert_eq!(
         String::from_utf8(output.stderr).unwrap().lines().last(),
@@ -1699,6 +1700,48 @@ fn readiness_write_error_releases_the_database_lease() {
     );
     assert_eq!(fs::read(&path).unwrap(), before);
     let reopened = weekend_db::Database::open_file(&path, weekend_db::Limits::default()).unwrap();
+    assert_eq!(reopened.snapshot().revision(), 2);
+}
+
+#[test]
+fn client_preserves_output_error_and_stops_before_the_next_request() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let path = dir.0.join("client-output.db");
+    let path = path.to_str().unwrap();
+    assert!(
+        Command::new(BIN)
+            .args(["init", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let initial = fs::read(path).unwrap();
+    let mut server = Process::start(&["serve", path, "0"]);
+    let ready = server.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap();
+    let (read_end, mut write_end) = std::io::pipe().unwrap();
+    drop(read_end);
+    let expected = write_end.write_all(b"probe\n").unwrap_err().to_string();
+    let mut child = Command::new(BIN)
+        .args(["client", port])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::from(write_end))
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"get\nset 2 9\n")
+        .unwrap();
+    let output = wait_for_child_output(child, "losing its reply output");
+    assert!(!output.status.success());
+    assert_eq!(String::from_utf8(output.stderr).unwrap().trim(), expected);
+    server.stop();
+    assert_eq!(fs::read(path).unwrap(), initial);
+    let reopened = weekend_db::Database::open_file(path, weekend_db::Limits::default()).unwrap();
     assert_eq!(reopened.snapshot().revision(), 2);
 }
 
