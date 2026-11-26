@@ -33,6 +33,12 @@ all 24 restored C, C++ and Odin consumer runs. PR #82 also passes
 28 checks at its previous head `9e5ebee`, with the release-only
 compatibility job skipped.
 
+The [later compatibility checkpoint](compatibility-1f3f42a.md) passes
+storage, typed migration, snapshot wire, snapshot CLI and Study CLI on
+macOS and Docker Linux at `1f3f42a`. The Study guard admits the exact audited
+test-only source change, with twelve mutation detections across both hosts
+and profiles. Stable replay passes 55 cases in each profile on both hosts.
+
 The [2026-11-18 dependency snapshot](locked-dependency-review-3de695f.md)
 scans all fourteen lockfiles at `3de695f` against frozen RustSec `233155b`
 (1,527 parsed advisories): zero reported vulnerabilities and warnings.

@@ -32,6 +32,12 @@ const HISTORICAL: &str = "fb80989d98bd977743168ee10418a434a67a0261";
 const CURRENT: &str = "365daf6c8a6b7c85fb049fb5a0370b401dde2424";
 const LABELS: [&str; 2] = ["old", "new"];
 const FIXTURE: &str = "study-cli-upgrade-fixture.rs";
+const PROTOCOL_SOURCE: &str = "apps/study-peer/src/native/protocol.rs";
+// The two audited files differ only inside the inline #[cfg(test)] module.
+const PROTOCOL_TEST_ONLY_CHANGE: (&str, &str) = (
+    "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
+    "4517dfe5c848f7033f8b7c80c5a9c0a85b771f1fb6cd9fa28495e7d835e2518a",
+);
 const MARKERS: [&str; 3] = [
     "PASS old-old",
     "PASS reachable mixed-version ALPN",
@@ -121,17 +127,24 @@ fn generate(source: &Path, scenario: &Path) -> Result<String> {
     )
 }
 
+fn protocol_source_matches(old: &str, new: &str) -> bool {
+    old == new || (old, new) == PROTOCOL_TEST_ONLY_CHANGE
+}
+
 fn source_locks(source: &Path) -> Result<()> {
-    for name in [
-        "examples/support/study.rs",
-        "src/crdt.rs",
-        "apps/study-peer/src/native/protocol.rs",
-    ] {
+    for name in ["examples/support/study.rs", "src/crdt.rs"] {
         ensure!(
             sha(&source.join("old").join(name))? == sha(&source.join("new").join(name))?,
             "unqualified state/wire source change: {name}"
         );
     }
+    ensure!(
+        protocol_source_matches(
+            &sha(&source.join("old").join(PROTOCOL_SOURCE))?,
+            &sha(&source.join("new").join(PROTOCOL_SOURCE))?,
+        ),
+        "unqualified state/wire source change: {PROTOCOL_SOURCE}"
+    );
     ensure!(
         inventory(&source.join("old/src/crdt"), &["decisions.rs"])?
             == inventory(&source.join("new/src/crdt"), &["decisions.rs"])?,
@@ -573,6 +586,19 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
 mod tests {
     use super::*;
     use crate::support::Scratch;
+
+    #[test]
+    fn protocol_source_allows_only_the_reviewed_test_only_transition() {
+        let historical = "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e";
+        let test_only = "4517dfe5c848f7033f8b7c80c5a9c0a85b771f1fb6cd9fa28495e7d835e2518a";
+        let unknown = "0000000000000000000000000000000000000000000000000000000000000000";
+
+        assert!(protocol_source_matches(unknown, unknown));
+        assert!(protocol_source_matches(historical, test_only));
+        assert!(!protocol_source_matches(historical, unknown));
+        assert!(!protocol_source_matches(unknown, test_only));
+        assert!(!protocol_source_matches(test_only, historical));
+    }
 
     #[test]
     fn fixture_requires_one_native_binary_seam_and_preserves_public_oracles() {

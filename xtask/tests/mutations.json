@@ -24496,6 +24496,42 @@
       "target": "--bin",
       "package": "xtask",
       "exact_test": "trace_process::tests::trace_admission_records_the_original_error_without_creating_logs"
+    },
+    {
+      "name": "r1-study-protocol-source-reject-reviewed-test-change",
+      "file": "xtask/src/study_upgrade.rs",
+      "old": "old == new || (old, new) == PROTOCOL_TEST_ONLY_CHANGE",
+      "new": "old == new",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "study_upgrade::tests::protocol_source_allows_only_the_reviewed_test_only_transition"
+    },
+    {
+      "name": "r1-study-protocol-source-accept-any-successor",
+      "file": "xtask/src/study_upgrade.rs",
+      "old": "old == new || (old, new) == PROTOCOL_TEST_ONLY_CHANGE",
+      "new": "old == new || old == PROTOCOL_TEST_ONLY_CHANGE.0",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "study_upgrade::tests::protocol_source_allows_only_the_reviewed_test_only_transition"
+    },
+    {
+      "name": "r1-study-protocol-source-accept-any-predecessor",
+      "file": "xtask/src/study_upgrade.rs",
+      "old": "old == new || (old, new) == PROTOCOL_TEST_ONLY_CHANGE",
+      "new": "old == new || new == PROTOCOL_TEST_ONLY_CHANGE.1",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "study_upgrade::tests::protocol_source_allows_only_the_reviewed_test_only_transition"
     }
   ]
 }

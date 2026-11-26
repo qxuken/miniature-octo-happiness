@@ -215,7 +215,7 @@
     "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
     "xtask/src/sqlite_baseline.rs": "f09c50fade656d716ecbf14643a7a9bceb9433059b95c3a7fb2eabaa9f94b00d",
     "xtask/src/study_soak.rs": "430b55111e7145ab89fe9ce1ec5cfe94280dbb18b11087c4164a78e818cf650b",
-    "xtask/src/study_upgrade.rs": "85934f92de2681263e1fc7c756432a29fbb7eaa537e4222bc8a9610804597e89",
+    "xtask/src/study_upgrade.rs": "7624ba2e3597701b188598d0619a48560c4c512c12c0ff84838cedaeb7734782",
     "xtask/src/supervise.rs": "41fe85d5b46bac45001a2e724b4b2d25ad737e5dfc1c5c522620bf0513be705d",
     "xtask/src/support.rs": "ab81f996e6e6e19a44180b3a350176859a343b4a5b34f04bbf24789b62c67dd1",
     "xtask/src/toolchain.rs": "a0e44e9f90a3d893fa9402a64e4c860e44f0e3029020ce9f8395978fa92fa7b5",
@@ -301,7 +301,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "754e184d283e882c712549fa0eb79c90add676f9af94e1e5ed37b84d1c13331e",
+    "xtask/tests/mutations.json": "b499ecc84bcd266ef3e18ebbf8b51f5d921d1cb5c46f2c943804a5b6cf1bd6fc",
     "xtask/tests/supervise.rs": "c246ea1294e470f8a32271209c961da00c116bbf8c6ad3811154a0d00e2067d8",
     "docs/decision-inventory-catalog.md": "11471d8d8bf0710deec26e38a242e59990be95932851dd44f26c210bd0248af1",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -485,7 +485,8 @@
     "docs/decisions/supervisor-cli-response-current.md": "4c7dd9437733ca28c7255190fbc0b516a87e76c276072e62862d90c6b170db66",
     "docs/decisions/supervisor-cli-response-4a3ea5d.sha256": "04ac223dfdae8ef21b3beb7fe9cdff472f1c8ca674217804a58b3dab93b07f20",
     "docs/decisions/trace-log-evidence-current.md": "8800cf81ec8749a006f95d79d968dc9c7c53021e10a93d9059f3cbee4e2b104e",
-    "docs/decisions/trace-log-evidence-92ff7bf.sha256": "390ccff60da87baf010eb7e61aec788f34f27626092a15bf32e0776155f2a945"
+    "docs/decisions/trace-log-evidence-92ff7bf.sha256": "390ccff60da87baf010eb7e61aec788f34f27626092a15bf32e0776155f2a945",
+    "docs/decisions/study-protocol-upgrade-source.md": "3619b9ba71b1c76f14036c8ba754d92e23273e714d44a61166ef6b90227fe7b1"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -554,7 +555,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 344,
-    "xtask::xtask": 5339,
+    "xtask::xtask": 5340,
     "weekend-serialization-scale::cache-forks": 28
   },
   "groups": [
@@ -1110,7 +1111,8 @@
         "docs/decisions/supervisor-output-flow-current.md",
         "docs/decisions/supervisor-proc-identity-current.md",
         "docs/decisions/supervisor-cli-response-current.md",
-        "docs/decisions/trace-log-evidence-current.md"
+        "docs/decisions/trace-log-evidence-current.md",
+        "docs/decisions/study-protocol-upgrade-source.md"
       ],
       "residual": "Helper and native negative controls remain scoped evidence, not individual independence pairs for all tooling records. Standalone workspaces and consumers are now inventoried in their own target contexts; their records and macro/compiled boundaries remain explicit obligations."
     },
@@ -47904,6 +47906,55 @@
       ],
       "mutations": [
         "r1-trace-log-evidence-replace-admission-error"
+      ]
+    },
+    {
+      "name": "STUDY-UPGRADE-PROTOCOL-SOURCE-ADMISSION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/study_upgrade.rs",
+        "target": "xtask::xtask",
+        "kind": "short_circuit_or",
+        "owner": "protocol_source_matches",
+        "start_byte": 4382,
+        "conditions": [
+          "old == new",
+          "(old, new) == PROTOCOL_TEST_ONLY_CHANGE"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/study_upgrade.rs",
+          "name": "protocol_source_allows_only_the_reviewed_test_only_transition"
+        }
+      ],
+      "mutations": [
+        "r1-study-protocol-source-reject-reviewed-test-change",
+        "r1-study-protocol-source-accept-any-successor",
+        "r1-study-protocol-source-accept-any-predecessor"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        }
       ]
     }
   ],

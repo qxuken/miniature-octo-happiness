@@ -15,6 +15,10 @@ reads additionally verify all persisted records after the scenario. This is a
 specific pre-1 pair, not a compatibility promise for every version or an
 old-reader rollback qualification after arbitrary new application changes.
 
+The [later compatibility checkpoint](compatibility-1f3f42a.md) upgrades
+from the same historical endpoint to `1f3f42a` on macOS and Linux with the
+reviewed test-only protocol source change admitted by the guard.
+
 ## Observed upgrade behavior
 
 The runner uses the following scenario with unchanged credentials,

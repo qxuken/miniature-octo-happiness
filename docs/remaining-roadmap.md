@@ -2782,3 +2782,13 @@ library. The source, package and notice hashes verify from a portable archive.
 All 14 lock blobs match the prior R6 review. R7 still requires the final
 same-source x64 lanes and an off-machine restore.
 [Private delivery and hosted CI evidence](delivery-checkpoint-1f3f42a.md)
+
+### Compatibility and stable replay at 1f3f42a
+
+The [five compatibility profiles](compatibility-1f3f42a.md) pass native
+macOS and Docker Linux with the selected old endpoints. The Study source
+guard now admits the reviewed protocol file pair whose changes are confined
+to the test module. Both hosts detect three guard mutations in both
+profiles. Fresh extraction verifies 1,110 profile artifacts and the four
+55-test stable replay runs with 253 unchanged seeds. Exact native Windows
+compatibility and the production version window remain R4 requirements.
