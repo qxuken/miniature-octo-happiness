@@ -295,6 +295,16 @@ fn submit(
 }
 
 #[cfg(test)]
+use weekend_db as allocator_engine;
+#[cfg(test)]
+#[allow(dead_code)]
+#[path = "../../../../tests/support/allocator.rs"]
+mod allocator;
+#[cfg(test)]
+#[path = "../../../../tests/support/logical_checksum.rs"]
+mod logical_checksum;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use weekend_db::{
@@ -304,6 +314,211 @@ mod tests {
 
     fn open(disk: &SimulatedDisk) -> Database {
         Database::open_on(disk.clone(), Limits::default()).unwrap()
+    }
+
+    #[test]
+    fn sequenced_submit_preserves_counter_read_errors() {
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(disk.clone(), [7; 16], Limits::default()).unwrap();
+        initialize(&db).unwrap();
+        let collection = db.collection_id(DATA_COLLECTION);
+        for (counter, error) in [
+            (Some(db.bytes(b"wrong type").unwrap()), Error::Type),
+            (None, Error::NotFound),
+        ] {
+            let mut tx = db.begin();
+            match counter {
+                Some(value) => tx.put(collection, KEY, &value).unwrap(),
+                None => tx.delete(collection, KEY).unwrap(),
+            }
+            let revision = tx.commit().unwrap();
+            drop(tx);
+            let image = disk.durable_image().unwrap();
+            let command = format!("set-seq 0 1 {revision} 7");
+            assert_eq!(handle(&mut db, &command), Err(error));
+            assert_eq!(db.snapshot().revision(), revision);
+            assert_eq!(handle(&mut db, "receipt 0"), Ok("receipt 0".into()));
+            assert_eq!(disk.durable_image().unwrap(), image);
+        }
+        let mut tx = db.begin();
+        tx.put(collection, KEY, &db.unsigned(0).unwrap()).unwrap();
+        assert_eq!(tx.commit(), Ok(6));
+        drop(tx);
+        assert_eq!(handle(&mut db, "set-seq 0 1 6 7"), Ok("committed 7".into()));
+    }
+
+    #[test]
+    fn sequenced_draft_limits_leave_current_and_retained_rows_unchanged() {
+        let seed = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(seed.clone(), [7; 16], Limits::default()).unwrap();
+        initialize(&db).unwrap();
+        let retained = db.retain_snapshot(&db.snapshot()).unwrap();
+        drop(db);
+        let initial = seed.durable_image().unwrap();
+        for limits in [
+            Limits {
+                max_observations: 0,
+                ..Limits::default()
+            },
+            Limits {
+                max_writes: 0,
+                ..Limits::default()
+            },
+            Limits {
+                max_bytes: 32,
+                ..Limits::default()
+            },
+            Limits {
+                max_writes: 1,
+                ..Limits::default()
+            },
+        ] {
+            let disk = SimulatedDisk::from_image(&initial).unwrap();
+            let mut db = Database::open_on(disk.clone(), limits).unwrap();
+            let before = disk.durable_image().unwrap();
+            let command = "set-seq 0 1 4 30";
+            assert_eq!(handle(&mut db, command), Err(Error::Limit), "{limits:?}");
+            assert_eq!(handle(&mut db, "get"), Ok("value 4 0".into()));
+            assert_eq!(handle(&mut db, "receipt 0"), Ok("receipt 0".into()));
+            assert_eq!(disk.durable_image().unwrap(), before);
+            drop(db);
+            disk.crash(Crash::DropAll).unwrap();
+            let mut db = open(&disk);
+            assert_eq!(handle(&mut db, "get"), Ok("value 4 0".into()));
+            assert_eq!(handle(&mut db, command), Ok("committed 5".into()));
+            assert_eq!(handle(&mut db, "receipt 0"), Ok("receipt 1 4 30 5".into()));
+            let committed = disk.durable_image().unwrap();
+            assert_eq!(handle(&mut db, command), Ok("committed 5".into()));
+            assert_eq!(disk.durable_image().unwrap(), committed);
+            let snapshot = db.retained_snapshot(retained).unwrap();
+            let collection = db.collection_id(DATA_COLLECTION);
+            assert_eq!(snapshot.revision(), INITIAL_REVISION);
+            assert_eq!(counter_at(&snapshot, collection), Ok(0));
+            assert_eq!(receipt_at(&snapshot, collection, "0"), Ok(None));
+        }
+    }
+
+    #[test]
+    fn sequenced_counter_allocation_failure_preserves_prior_receipt() {
+        use super::allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let allocator = Arc::new(TestAllocator::default());
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db =
+            Database::create_on_with_options(disk.clone(), [7; 16], allocator.options()).unwrap();
+        initialize(&db).unwrap();
+        assert_eq!(
+            handle(&mut db, "set-seq 0 1 3 12"),
+            Ok("committed 4".into())
+        );
+        let collection = db.collection_id(DATA_COLLECTION);
+        let start = allocator.requests();
+        let mut probe = db.begin_with_validation(Validation::WholeDatabase);
+        assert!(
+            probe
+                .get(collection, &slot_key("0").unwrap())
+                .unwrap()
+                .is_some()
+        );
+        let observation_requests = allocator.requests() - start;
+        drop(probe);
+        let before = disk.durable_image().unwrap();
+        let live_bytes = allocator.live_bytes();
+        let next = "set-seq 0 2 4 30";
+        assert_eq!(
+            allocator.with_refusal(observation_requests, || handle(&mut db, next)),
+            Err(Error::OutOfMemory)
+        );
+        assert_eq!(allocator.live_bytes(), live_bytes);
+        assert_eq!(handle(&mut db, "get"), Ok("value 4 12".into()));
+        assert_eq!(handle(&mut db, "receipt 0"), Ok("receipt 1 3 12 4".into()));
+        assert_eq!(disk.durable_image().unwrap(), before);
+        assert_eq!(handle(&mut db, next), Ok("committed 5".into()));
+    }
+
+    #[test]
+    fn sequenced_submit_refuses_an_exhausted_imported_revision() {
+        use weekend_db::storage::{export_logical_on, import_logical_on};
+
+        let limits = Limits::default();
+        let seed = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(seed.clone(), [7; 16], limits).unwrap();
+        initialize(&db).unwrap();
+        drop(db);
+        let mut logical = export_logical_on(seed, limits).unwrap();
+        // The logical header records the acknowledged revision before the DATA
+        // revision. The two seeded collections keep their original revisions.
+        assert_eq!(logical[..8], *b"WDBLOG01");
+        assert_eq!(logical[32..40], INITIAL_REVISION.to_le_bytes());
+        logical[32..40].copy_from_slice(&u64::MAX.to_le_bytes());
+        logical_checksum::sign(&mut logical);
+        let disk = SimulatedDisk::new().unwrap();
+        import_logical_on(&logical, disk.clone(), limits).unwrap();
+        let mut db = open(&disk);
+        admit(&db).unwrap();
+        let before = disk.durable_image().unwrap();
+        assert_eq!(db.snapshot().revision(), u64::MAX);
+        let request = format!("set-seq 0 1 {} 30", u64::MAX);
+        assert_eq!(handle(&mut db, &request), Err(Error::Exhausted));
+        assert_eq!(db.snapshot().revision(), u64::MAX);
+        assert_eq!(handle(&mut db, "receipt 0"), Ok("receipt 0".into()));
+        assert_eq!(disk.durable_image().unwrap(), before);
+    }
+
+    #[test]
+    fn sequenced_predecessor_modes_from_the_same_committed_image() {
+        let seed = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(seed.clone(), [7; 16], Limits::default()).unwrap();
+        initialize(&db).unwrap();
+        let identity = hex(&[7; 16]);
+        let first = format!("journal-set {identity} 0 1 - 3 12");
+        assert_eq!(handle(&mut db, &first), Ok("committed 4".into()));
+        drop(db);
+        let image = seed.durable_image().unwrap();
+        let receipt = Receipt {
+            sequence: 1,
+            expected: 3,
+            value: 12,
+            revision: 4,
+        };
+        for (command, expected, published) in [
+            (
+                "set-seq 0 2 4 30".to_owned(),
+                Ok("committed 5".into()),
+                true,
+            ),
+            (
+                format!("journal-set {identity} 0 2 {} 4 30", hex(&receipt.encode())),
+                Ok("committed 5".into()),
+                true,
+            ),
+            (
+                format!(
+                    "journal-set {identity} 0 2 {} 4 30",
+                    hex(&Receipt {
+                        value: 13,
+                        ..receipt
+                    }
+                    .encode())
+                ),
+                Err(Error::Conflict),
+                false,
+            ),
+        ] {
+            let disk = SimulatedDisk::from_image(&image).unwrap();
+            let mut db = open(&disk);
+            let before = disk.durable_image().unwrap();
+            assert_eq!(handle(&mut db, &command), expected, "{command}");
+            if published {
+                assert_eq!(handle(&mut db, "receipt 0"), Ok("receipt 2 4 30 5".into()));
+                assert_eq!(handle(&mut db, "get"), Ok("value 5 30".into()));
+            } else {
+                assert_eq!(handle(&mut db, "receipt 0"), Ok("receipt 1 3 12 4".into()));
+                assert_eq!(handle(&mut db, "get"), Ok("value 4 12".into()));
+                assert_eq!(disk.durable_image().unwrap(), before);
+            }
+        }
     }
 
     #[test]
