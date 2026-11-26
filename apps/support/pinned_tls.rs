@@ -380,6 +380,14 @@ mod deadline_tests {
         assert!(tls.check_pin(Some(&[])).is_err());
         assert!(tls.check_pin(Some(&[a.certificate()])).is_err());
         assert!(tls.check_pin(Some(&[b.certificate()])).is_ok());
+        assert!(
+            tls.check_pin(Some(&[a.certificate(), b.certificate()]))
+                .is_err()
+        );
+        assert!(
+            tls.check_pin(Some(&[b.certificate(), a.certificate()]))
+                .is_ok()
+        );
     }
     #[test]
     fn absolute_deadline_is_not_renewed_by_progress() {
@@ -917,15 +925,55 @@ mod shared_admission_tests {
 #[cfg(test)]
 mod credential_boundary_tests {
     use super::*;
+    use std::{path::PathBuf, sync::atomic::AtomicU64};
+
+    struct FixtureDirectory(PathBuf);
+
+    impl FixtureDirectory {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let sequence = NEXT.fetch_add(1, Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "weekend-credential-test-{}-{sequence}",
+                std::process::id(),
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for FixtureDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn load_bounds_and_regular_file_checks_precede_tls() {
-        let path = std::env::temp_dir().join(format!("shared-tls-bounds-{}", std::process::id()));
+        let root = FixtureDirectory::new();
+        let path = root.0.join("credentials");
         let local = Credentials::generate().unwrap();
         local.write_fixture(&path);
         let loaded = Credentials::load(&path).unwrap();
         assert_eq!(loaded.certificate(), local.certificate());
+        assert!(
+            loaded.key.secret_der() == local.key.secret_der(),
+            "loaded key differs"
+        );
         for (name, cap) in [("cert.der", 65536), ("key.der", 16384)] {
             let file = path.join(name);
+            let held = path.join("held.der");
+            fs::rename(&file, &held).unwrap();
+            let error = Credentials::load(&path)
+                .err()
+                .expect("missing credential loaded");
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::NotFound),
+                "{name}"
+            );
+            fs::rename(&held, &file).unwrap();
+
             let original = fs::read(&file).unwrap();
             fs::write(&file, vec![0; cap + 1]).unwrap();
             assert!(Credentials::load(&path).is_err());
@@ -944,7 +992,109 @@ mod credential_boundary_tests {
             );
             assert!(Credentials::load(&path).is_err());
         }
-        fs::remove_dir_all(&path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn keygen_directory_failure_preserves_native_error_and_existing_files() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = FixtureDirectory::new();
+        let missing_parent = root.0.join("missing").join("credentials");
+        let error = Credentials::create(&missing_parent).unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(io::ErrorKind::NotFound)
+        );
+        assert!(!missing_parent.exists());
+
+        let path = root.0.join("credentials");
+        Credentials::create(&path).unwrap();
+        let key = path.join("key.der");
+        let cert = path.join("cert.der");
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert_eq!(
+            fs::metadata(&key).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        let before_key = fs::read(&key).unwrap();
+        let before_cert = fs::read(&cert).unwrap();
+        let error = Credentials::create(&path).unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(io::ErrorKind::AlreadyExists)
+        );
+        assert!(
+            fs::read(&key).unwrap() == before_key,
+            "existing key changed"
+        );
+        assert!(
+            fs::read(&cert).unwrap() == before_cert,
+            "existing certificate changed"
+        );
+        assert_eq!(
+            Credentials::load(&path).unwrap().certificate().as_ref(),
+            before_cert
+        );
+    }
+
+    #[test]
+    fn tls_configuration_preserves_certificate_and_key_errors() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let same = Tls::new(&local, local.certificate())
+            .err()
+            .expect("local certificate accepted as peer");
+        assert_eq!(same.to_string(), "configure the other peer's certificate");
+
+        let malformed = CertificateDer::from(vec![0x30, 0]);
+        let expected = RootCertStore::empty().add(malformed.clone()).unwrap_err();
+        let error = Tls::new(&local, malformed)
+            .err()
+            .expect("malformed peer certificate accepted");
+        assert_eq!(error.downcast_ref::<rustls::Error>(), Some(&expected));
+
+        let mut roots = RootCertStore::empty();
+        roots.add(peer.certificate()).unwrap();
+        for key in [
+            PrivatePkcs8KeyDer::from(vec![0x30, 0]).into(),
+            peer.key.clone_key(),
+        ] {
+            let invalid = Credentials {
+                cert: local.certificate(),
+                key,
+            };
+            let expected = ClientConfig::builder()
+                .with_root_certificates(roots.clone())
+                .with_client_auth_cert(vec![invalid.certificate()], invalid.key.clone_key())
+                .unwrap_err();
+            let error = Tls::new(&invalid, peer.certificate())
+                .err()
+                .expect("invalid local key accepted");
+            assert_eq!(error.downcast_ref::<rustls::Error>(), Some(&expected));
+        }
+        assert!(Tls::new(&local, peer.certificate()).is_ok());
+    }
+
+    #[test]
+    fn connection_refusal_preserves_the_original_socket_error() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let tls = Tls::new(&local, peer.certificate()).unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let error = tls
+            .connect(address)
+            .err()
+            .expect("closed endpoint accepted a connection");
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(io::ErrorKind::ConnectionRefused)
+        );
     }
 }
 
