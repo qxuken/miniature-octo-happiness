@@ -847,6 +847,26 @@ pub(super) fn encode_with_append(
         Some(old) => CacheState::Borrowed(old),
         None => CacheState::Owned(DataCache::new()),
     };
+    // Packed pages carry their own references. Keep only reachable DATA offsets once
+    // stale revisions outnumber the bounded retained catalog.
+    let data_cache = if packed.as_ref().is_some_and(|s| s.3.extended())
+        && data_cache.entries.len() > 2 * (retention.entries.len() + 1) + 64
+    {
+        let mut entries = ChargedVec::new();
+        mem.reserve(&mut entries, retention.entries.len() + 1)?;
+        for revision in std::iter::once(head.data_revision)
+            .chain(retention.entries.iter().map(|r| r.head.data_revision))
+        {
+            if let Some(i) = data_cache.index.get(revision, &data_cache.entries)
+                && !entries.iter().any(|e: &DataEntry| e.revision == revision)
+            {
+                entries.push(data_cache.entries[i].clone());
+            }
+        }
+        CacheState::Owned(DataCache::from_entries(mem, entries)?)
+    } else {
+        data_cache
+    };
     let mut encoder = Encoder {
         packed,
         rebased: None,

@@ -1,4 +1,12 @@
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+fn migration_limits() -> weekend_db::Limits {
+    weekend_db::Limits {
+        max_entries: 1_000_000,
+        max_live_bytes: 64 << 20,
+        ..weekend_db::Limits::default()
+    }
+}
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 fn target_format(s: &std::ffi::OsStr) -> weekend_db::Result<weekend_db::storage::FileFormat> {
     use weekend_db::storage::{FileCapacity, FileFormat};
     Ok(match s.to_str() {
@@ -39,7 +47,7 @@ fn run(args: &[std::ffi::OsString]) -> weekend_db::Result<()> {
             let format = target_format(target)?;
             #[cfg(any(target_os = "macos", target_os = "linux"))]
             {
-                let stats = storage::migrate_file(path, format, Limits::default())?;
+                let stats = storage::migrate_file(path, format, migration_limits())?;
                 println!(
                     "migrated {} bytes to {} bytes",
                     stats.before_bytes, stats.after_bytes
@@ -57,7 +65,7 @@ fn run(args: &[std::ffi::OsString]) -> weekend_db::Result<()> {
                 source,
                 destination,
                 target_format(target)?,
-                Limits::default(),
+                migration_limits(),
             )?;
             println!("verified migrated copy {} bytes", stats.after_bytes);
             Ok(())
@@ -258,7 +266,7 @@ fn main() {
     if let Err(error) = result {
         eprintln!("{error}");
         eprintln!(
-            "usage: weekend-admin check FILE | compact FILE (macOS/Linux) | backup SOURCE NEW_FILE | restore BACKUP NEW_FILE | salvage SOURCE NEW_FILE | export SOURCE NEW_LOGICAL | import LOGICAL NEW_FILE"
+            "usage: weekend-admin migrate FILE TARGET (macOS/Linux) | migrate-to SOURCE NEW_FILE TARGET (v3, 64MiB, 256MiB, 1GiB, unbounded) | check FILE | compact FILE (macOS/Linux) | backup SOURCE NEW_FILE | restore BACKUP NEW_FILE | salvage SOURCE NEW_FILE | export SOURCE NEW_LOGICAL | import LOGICAL NEW_FILE"
         );
         std::process::exit(1);
     }

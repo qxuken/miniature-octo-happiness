@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 
 /// Read access to an installed image. Borrowed snapshots pin this view and
 /// prevent another installation until those borrows end.
-pub struct Replica(Database);
+pub struct Replica(Database, Option<crate::storage::codec::paging::Source>);
 impl Replica {
     pub fn snapshot(&self) -> Snapshot<'_> {
         self.0.snapshot()
@@ -26,20 +26,23 @@ impl Replica {
 // The manifest lease serializes all access to the two slots. Only the
 // inactive slot can be replaced, and only after manifest recovery.
 trait Images {
-    type Store: ByteStore;
+    type Store: ByteStore + 'static;
     fn create(&mut self, slot: u8) -> Result<Self::Store>;
     fn open(&mut self, slot: u8) -> Result<Self::Store>;
     fn check_manifest_headroom(&self) -> Result<()> {
         Ok(())
     }
 }
+#[cfg(test)]
 struct Lease<B: ByteStore>(B);
+#[cfg(test)]
 impl<B: ByteStore> Lease<B> {
     fn new(mut store: B) -> Result<Self> {
         store.lock()?;
         Ok(Self(store))
     }
 }
+#[cfg(test)]
 impl<B: ByteStore> Drop for Lease<B> {
     fn drop(&mut self) {
         self.0.unlock();
@@ -77,6 +80,7 @@ struct Receiver<I> {
     enrollment: Enrollment,
     replica_limits: Limits,
     installed: Option<(Installed, Replica)>,
+    max_transfer_bytes: u64,
 }
 impl<I: Images> Receiver<I> {
     fn create(
@@ -92,6 +96,7 @@ impl<I: Images> Receiver<I> {
             enrollment,
             replica_limits,
             installed: None,
+            max_transfer_bytes: super::MAX_IMAGE_BYTES as u64,
         };
         follower.select(None)?;
         Ok(follower)
@@ -123,15 +128,17 @@ impl<I: Images> Receiver<I> {
                 None
             } else {
                 let selected = Installed::decode(active)?;
-                let mut image = Lease::new(images.open(selected.slot).map_err(|e| {
-                    if e == Error::NotFound {
-                        Error::Corrupt
-                    } else {
-                        e
-                    }
-                })?)?;
-                let replica =
-                    Self::verify(&mut image.0, selected.offer, enrollment, replica_limits)?;
+                let image = crate::storage::Storage::locked(
+                    images.open(selected.slot).map_err(|e| {
+                        if e == Error::NotFound {
+                            Error::Corrupt
+                        } else {
+                            e
+                        }
+                    })?,
+                    &crate::memory::Memory::new(replica_limits)?,
+                )?;
+                let replica = Self::verify(image, selected.offer, enrollment, replica_limits)?;
                 Some((selected, replica))
             }
         };
@@ -141,6 +148,7 @@ impl<I: Images> Receiver<I> {
             enrollment,
             replica_limits,
             installed,
+            max_transfer_bytes: super::MAX_IMAGE_BYTES as u64,
         })
     }
     fn select(&self, selected: Option<Installed>) -> Result<()> {
@@ -163,22 +171,22 @@ impl<I: Images> Receiver<I> {
         Ok(())
     }
     fn verify(
-        image: &mut dyn ByteStore,
+        mut image: crate::storage::Storage,
         offer: Offer,
         enrollment: Enrollment,
         limits: Limits,
     ) -> Result<Replica> {
-        if image_digest(image, offer.length)? != offer.digest {
+        if image_digest(image.image_bytes(), offer.length)? != offer.digest {
             return Err(Error::Corrupt);
         }
-        Database::decode_replica(
+        let (db, source) = Database::replica_from_storage(
             image,
             enrollment.file_identity,
             offer.revision,
             offer.length,
             limits,
-        )
-        .map(Replica)
+        )?;
+        Ok(Replica(db, source))
     }
     fn progress(&self) -> Result<Option<DurableAck>> {
         if self.manifest.requires_recovery() {
@@ -194,6 +202,9 @@ impl<I: Images> Receiver<I> {
         let Some(offer) = wire::read_request(channel, self.enrollment)? else {
             return Ok(progress.map_or(wire::Reply::Empty, wire::Reply::Installed));
         };
+        if offer.length > self.max_transfer_bytes {
+            return Err(Error::Limit);
+        }
         if let Some((prior, _)) = &self.installed {
             if offer.revision < prior.offer.revision || offer == prior.offer {
                 return Ok(wire::Reply::Installed(prior.offer.ack(self.enrollment)));
@@ -208,8 +219,11 @@ impl<I: Images> Receiver<I> {
             .map_or(0, |(prior, _)| 1 - prior.slot);
         self.images.check_manifest_headroom()?;
         let selected = Installed { slot, offer };
-        let mut image = Lease::new(self.images.create(slot)?)?;
-        if image.0.length()? != 0 {
+        let mut image = crate::storage::Storage::locked(
+            self.images.create(slot)?,
+            &crate::memory::Memory::new(self.replica_limits)?,
+        )?;
+        if image.image_bytes().length()? != 0 {
             return Err(Error::Corrupt);
         }
         wire::reply(channel, Ok(wire::Reply::Ready))?;
@@ -218,12 +232,11 @@ impl<I: Images> Receiver<I> {
         while offset < offer.length {
             let chunk = &mut buffer[..(offer.length - offset).min(REGION as u64) as usize];
             channel.read_exact(chunk).map_err(|_| Error::Io)?;
-            write_all(&mut image.0, offset, chunk)?;
+            write_all(image.image_bytes(), offset, chunk)?;
             offset += chunk.len() as u64;
         }
-        image.0.sync()?;
-        let replica = Self::verify(&mut image.0, offer, self.enrollment, self.replica_limits)?;
-        drop(image);
+        image.image_bytes().sync()?;
+        let replica = Self::verify(image, offer, self.enrollment, self.replica_limits)?;
         self.select(Some(selected))?;
         self.installed = Some((selected, replica));
         Ok(wire::Reply::Installed(offer.ack(self.enrollment)))
@@ -358,6 +371,17 @@ mod native {
             let manifest = Database::open_file(images.manifest(), Limits::default())?;
             Receiver::open(manifest, images, enrollment, limits).map(Self)
         }
+        /// Opt into a larger incoming image. The default for new transfers is 64 MiB.
+        /// Set again after opening a follower. Previously selected images remain recoverable.
+        pub fn set_max_transfer_bytes(&mut self, bytes: u64) -> Result<()> {
+            if !(crate::storage::APPEND_START as u64..=super::super::MAX_TRANSFER_BYTES)
+                .contains(&bytes)
+            {
+                return Err(Error::Invalid);
+            }
+            self.0.max_transfer_bytes = bytes;
+            Ok(())
+        }
         pub fn progress(&self) -> Result<Option<DurableAck>> {
             self.0.progress()
         }
@@ -386,10 +410,17 @@ mod native {
         pub fn cleanup_inactive(&mut self) -> Result<usize> {
             self.progress()?;
             let selected = self.0.installed.as_ref().map(|(selected, _)| *selected);
-            if let Some(selected) = selected {
-                let mut image = Lease::new(self.0.images.open(selected.slot)?)?;
+            if let Some((selected, replica)) = &self.0.installed {
+                let mem = crate::memory::Memory::new(self.0.replica_limits)?;
+                let image = if let Some(source) = &replica.1 {
+                    let mut s = source.clone();
+                    s.verify_binding()?;
+                    crate::storage::Storage::locked(s, &mem)?
+                } else {
+                    crate::storage::Storage::locked(self.0.images.open(selected.slot)?, &mem)?
+                };
                 Receiver::<Directory>::verify(
-                    &mut image.0,
+                    image,
                     selected.offer,
                     self.0.enrollment,
                     self.0.replica_limits,
@@ -424,9 +455,12 @@ mod native {
             let enrollment = self.0.enrollment;
             let limits = self.0.replica_limits;
             let manifest = self.0.images.manifest();
+            let limit = self.0.max_transfer_bytes;
             drop(self);
             Database::compact_file(manifest, Limits::default())?;
-            Self::open(directory, enrollment, limits)
+            let mut follower = Self::open(directory, enrollment, limits)?;
+            follower.set_max_transfer_bytes(limit)?;
+            Ok(follower)
         }
         /// The last verified read view remains available if an installation
         /// requires recovery. Use progress() for the durable acknowledgment.
@@ -483,7 +517,7 @@ mod native {
                     digest: [8; 32],
                 },
             };
-            follower.0.installed = Some((installed, Replica(Database::new().unwrap())));
+            follower.0.installed = Some((installed, Replica(Database::new().unwrap(), None)));
             assert_eq!(
                 follower.status().unwrap().durable_ack,
                 Some(installed.offer.ack(enrollment))

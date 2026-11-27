@@ -1253,8 +1253,8 @@ fn enrollment_offer_and_wire_dispatch_boundaries() {
     for (length, ok) in [
         (APPEND_START as u64 - 1, false),
         (APPEND_START as u64, true),
-        (MAX_IMAGE_BYTES as u64, true),
-        (MAX_IMAGE_BYTES as u64 + 1, false),
+        (MAX_TRANSFER_BYTES, true),
+        (MAX_TRANSFER_BYTES + 1, false),
     ] {
         assert_eq!(
             Offer {

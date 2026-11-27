@@ -53,6 +53,9 @@ impl Source {
     }
 }
 impl ByteStore for Source {
+    fn verify_binding(&mut self) -> Result<()> {
+        self.access(|io| io.verify_binding())
+    }
     fn read_window(&self) -> usize {
         self.1
     }

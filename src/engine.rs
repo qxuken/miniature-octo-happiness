@@ -354,6 +354,24 @@ impl Database {
         feature = "replication",
         any(test, target_os = "macos", target_os = "linux", windows)
     ))]
+    pub(crate) fn replica_from_storage(
+        storage: Storage,
+        identity: [u8; 16],
+        revision: u64,
+        length: u64,
+        limits: Limits,
+    ) -> Result<(Self, Option<crate::storage::codec::paging::Source>)> {
+        let mut db = Self::with_limits(limits)?;
+        let (mut storage, recovered) =
+            storage.verified_replica(&db.mem, identity, revision, length)?;
+        *db.state.get_mut().unwrap() = State {
+            head: recovered.head,
+            next_collection: recovered.next_collection,
+            retention: recovered.retention,
+        };
+        Ok((db, storage.packed.take()))
+    }
+    #[cfg(all(test, feature = "replication"))]
     pub(crate) fn decode_replica(
         backend: &mut dyn ByteStore,
         identity: [u8; 16],

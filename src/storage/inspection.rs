@@ -104,7 +104,7 @@ fn copy_verified_as<B: ByteStore + 'static>(
         // File-local offsets belong to the source. The copy encodes its own.
         drop(cache);
         drop(data_cache);
-        Storage::create_image(
+        Storage::create_format(
             destination,
             mem,
             &head,
@@ -112,7 +112,6 @@ fn copy_verified_as<B: ByteStore + 'static>(
             identity,
             &retention,
             format,
-            true,
         )?
     };
     // The offline copy only returns sizes. Release cached references before

@@ -53,9 +53,15 @@ impl<'a, 'm> Builder<'a, 'm> {
         self.push_branch(b)
     }
     fn push_branch(&mut self, b: Shared<Branch>) -> Result<()> {
-        self.encoder
-            .mem
-            .reserve_geometric(&mut self.branches, 1, MAX_OBJECTS)?;
+        self.encoder.mem.reserve_geometric(
+            &mut self.branches,
+            1,
+            if self.encoder.packed.as_ref().is_some_and(|s| s.3.extended()) {
+                self.encoder.mem.limits().max_entries
+            } else {
+                MAX_OBJECTS
+            },
+        )?;
         self.branches.push(b);
         Ok(())
     }
@@ -277,7 +283,6 @@ impl Encoder<'_> {
             w.int(c.revision)?;
             w.int(c.len() as u64)?;
             w.int(tree.branches.len() as u64)?;
-            self.relocation.select(tree.source.id());
             for b in &tree.branches {
                 w.int(b.offset)?;
             }

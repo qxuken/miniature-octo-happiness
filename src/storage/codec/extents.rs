@@ -74,3 +74,27 @@ impl Offsets<u64> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn split_blocks_reject_overlaps_from_both_neighbors() {
+        let mem = Memory::new(crate::Limits::default()).unwrap();
+        let mut ix = Offsets::new();
+        for j in 0..512u64 {
+            let i = (j * 193) % 512;
+            let start = (1u64 << 36) + i * 16;
+            ix.check_free(start, start + 8).unwrap();
+            ix.insert(&mem, start, start + 8).unwrap();
+        }
+        for i in 0..512 {
+            let off = (1u64 << 36) + i * 16;
+            assert_eq!(ix.get(off), Some(&(off + 8)));
+            assert_eq!(ix.check_free(off - 1, off + 1), Err(Error::Corrupt));
+            assert_eq!(ix.check_free(off + 7, off + 10), Err(Error::Corrupt));
+            assert_eq!(ix.check_free(off, off + 8), Err(Error::Corrupt));
+            assert_eq!(ix.check_free(off + 8, off + 16), Ok(()));
+        }
+    }
+}

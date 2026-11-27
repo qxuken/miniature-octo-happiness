@@ -56,7 +56,7 @@ pub(crate) use file::compact_file;
     any(target_os = "macos", target_os = "linux"),
     any(test, feature = "fault-injection")
 ))]
-pub use file::{CompactionEvent, CompactionStep, compact_file_with_hook};
+pub use file::{CompactionEvent, CompactionStep, compact_file_with_hook, migrate_file_with_hook};
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub use file::{FileStore, migrate_file};
 #[cfg(target_os = "linux")]
@@ -114,6 +114,11 @@ pub trait ByteStore: Send {
         REGION
     }
 
+    /// Revalidate a named backend against the held lease before destructive maintenance.
+    fn verify_binding(&mut self) -> Result<()> {
+        Ok(())
+    }
+
     fn lock(&mut self) -> Result<()>;
     fn unlock(&mut self);
     fn length(&mut self) -> Result<u64>;
@@ -139,6 +144,9 @@ struct LockedStorage(Storage);
 impl ByteStore for LockedStorage {
     fn read_window(&self) -> usize {
         self.0.backend.read_window()
+    }
+    fn verify_binding(&mut self) -> Result<()> {
+        self.0.backend.verify_binding()
     }
     fn lock(&mut self) -> Result<()> {
         Ok(())
@@ -244,7 +252,7 @@ impl Storage {
     ) -> Result<(Self, u64)> {
         // Encode only the supplied graphs. Release the encoder caches before
         // independent verification builds its own graph.
-        let mut copy = Self::create_image(
+        let mut copy = Self::create_format(
             destination,
             mem,
             head,
@@ -252,7 +260,6 @@ impl Storage {
             identity,
             retention,
             packed,
-            true,
         )?;
         copy.release_serialization_caches();
         let bytes = copy.end;
@@ -321,27 +328,6 @@ impl Storage {
         retention: &Retention,
         packed: FileFormat,
     ) -> Result<Self> {
-        Self::create_image(
-            backend,
-            mem,
-            head,
-            next_collection,
-            identity,
-            retention,
-            packed,
-            false,
-        )
-    }
-    pub(crate) fn create_image<B: ByteStore + 'static>(
-        backend: B,
-        mem: &Memory,
-        head: &Head,
-        next_collection: u64,
-        identity: [u8; 16],
-        retention: &Retention,
-        packed: FileFormat,
-        fresh_copy: bool,
-    ) -> Result<Self> {
         let mut storage = Self::locked(backend, mem)?;
         if identity == [0; 16] {
             return Err(Error::Invalid);
@@ -357,7 +343,9 @@ impl Storage {
             storage.identity = identity;
             let source = source.with_format(packed);
             storage.packed = Some(source.clone());
-            let append = if fresh_copy {
+            // Public creation always starts at revision zero. A nonempty graph is an
+            // offline copy into a fresh, unpublished destination.
+            let append = if head.revision != 0 {
                 codec::AppendBytes::FreshFile {
                     destination: source.clone(),
                     offset: APPEND_START as u64,
@@ -389,6 +377,24 @@ impl Storage {
         }
         storage.publish(candidate, head.revision)?;
         Ok(storage)
+    }
+    #[cfg(feature = "replication")]
+    pub(crate) fn verified_replica(
+        self,
+        mem: &Memory,
+        identity: [u8; 16],
+        revision: u64,
+        length: u64,
+    ) -> Result<(Self, codec::Recovered)> {
+        let (storage, recovered, _) = self.read_locked(mem, None)?;
+        if recovered.identity != identity
+            || recovered.slot.revision != revision
+            || recovered.slot.end != length
+            || !recovered.witnessed
+        {
+            return Err(Error::Corrupt);
+        }
+        Ok((storage, recovered))
     }
     pub(crate) fn open<B: ByteStore + 'static>(
         backend: B,
@@ -594,7 +600,7 @@ pub(crate) fn write_all(
     Ok(())
 }
 
-#[cfg(feature = "replication")]
+#[cfg(all(test, feature = "replication"))]
 pub(crate) fn recover_replica(
     backend: &mut dyn ByteStore,
     mem: &Memory,

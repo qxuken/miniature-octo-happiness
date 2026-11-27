@@ -79,8 +79,10 @@ pub fn open_structured_image(input: &[u8]) {
     let Some((&mode, rest)) = input.split_first() else {
         return;
     };
-    let mut image = fixture_image().to_vec();
-    let mode = mode % 20;
+    let (mut image, mode) = match mode {
+        250 | 251 => (packed_fixture(mode == 251).to_vec(), 10),
+        _ => (fixture_image().to_vec(), mode % 20),
+    };
     if mode >= 10 {
         // All objects in this fixture fit a single region. Mutate both metadata
         // and graph regions and optionally repair their format-level CRC.
@@ -144,7 +146,7 @@ pub fn open_structured_image(input: &[u8]) {
             Err(Error::Corrupt)
         }
         8 => {
-            image[8] ^= 1;
+            image[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
             resign(&mut image[..REGION], 64);
             Err(Error::UnsupportedFormat)
         }

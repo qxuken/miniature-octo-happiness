@@ -125,6 +125,10 @@ impl Drop for FileStore {
     }
 }
 impl ByteStore for FileStore {
+    fn verify_binding(&mut self) -> Result<()> {
+        self.check()?;
+        self.location.check_lease(&self.file)
+    }
     fn read_window(&self) -> usize {
         64 * 1024
     }
@@ -501,6 +505,20 @@ fn compact_file_with_hook_on(
 }
 fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<CompactionStats> {
     replace_file_impl(path, mem, observer, None)
+}
+#[cfg(any(test, feature = "fault-injection"))]
+pub fn migrate_file_with_hook(
+    path: &Path,
+    format: super::FileFormat,
+    limits: Limits,
+    hook: impl FnMut(CompactionEvent) -> Result<()> + Send + 'static,
+) -> Result<CompactionStats> {
+    let instrumentation = Memory::new(limits)?;
+    let hook: Hook = instrumentation.boxed(hook)?;
+    let observer = Observer {
+        hook: Some(instrumentation.shared(std::sync::Mutex::new(hook))?),
+    };
+    replace_file_impl(path, &Memory::new(limits)?, observer, Some(format))
 }
 /// Atomically install a verified image of the selected format at the same name.
 pub fn migrate_file(

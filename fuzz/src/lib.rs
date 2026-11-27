@@ -47,6 +47,32 @@ pub fn fixture_image() -> &'static [u8] {
     })
 }
 
+/// Deterministic packed images shared by raw, structured and seed replay tests.
+pub fn packed_fixture(extended: bool) -> &'static [u8] {
+    static IMAGES: [OnceLock<Vec<u8>>; 2] = [OnceLock::new(), OnceLock::new()];
+    IMAGES[usize::from(extended)].get_or_init(|| {
+        let disk = SimulatedDisk::new().unwrap();
+        let options = weekend_db::DatabaseOptions::default();
+        let options = if extended {
+            options.with_file_capacity(weekend_db::storage::FileCapacity::MiB256)
+        } else {
+            options.with_packed_pages()
+        };
+        let db = Database::create_on_with_options(disk.clone(), ID, options).unwrap();
+        let c = db.create_collection().unwrap();
+        for byte in [23, 63] {
+            let mut tx = db.begin();
+            tx.put(c, b"blob", &db.bytes(&[byte; 8192]).unwrap())
+                .unwrap();
+            tx.commit().unwrap();
+            if byte == 23 {
+                db.retain_snapshot(&db.snapshot()).unwrap();
+            }
+        }
+        disk.durable_image().unwrap()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -55,6 +81,11 @@ mod tests {
     fn representative_inputs_replay_without_the_fuzz_runtime() {
         open_image_bytes(b"WEEKDB01");
         open_image_bytes(fixture_image());
+        for (mode, extended) in [(250, false), (251, true)] {
+            open_image_bytes(packed_fixture(extended));
+            open_structured_image(&[mode]);
+            open_structured_image(&[mode, 7, 15, 0, 2, 1]);
+        }
         for mode in 0..10 {
             for flags in [0, 1] {
                 open_structured_image(&[mode, flags]);

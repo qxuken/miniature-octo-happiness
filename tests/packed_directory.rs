@@ -196,6 +196,20 @@ fn million_distinct_packed_values() {
         stats.after_bytes,
         t.elapsed()
     );
+    drop(verified);
+    #[cfg(feature = "replication")]
+    {
+        let area = path.with_extension("follower-test");
+        capacity_follower::roundtrip(
+            &path,
+            &area,
+            limits(),
+            retained_id,
+            64 << 20,
+            |view, c, edited| check_all(view, c, n, edited),
+        );
+        std::fs::remove_dir_all(area).unwrap();
+    }
 }
 
 #[test]
@@ -446,3 +460,10 @@ fn packed_encoding_round_trips_each_value_kind_and_oversize_keys() {
     }
     assert_eq!(s.get(c, &long).unwrap(), Some(inner));
 }
+
+#[cfg(all(
+    feature = "replication",
+    any(target_os = "linux", target_os = "macos", windows)
+))]
+#[path = "support/capacity_follower.rs"]
+mod capacity_follower;

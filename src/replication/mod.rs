@@ -5,9 +5,7 @@
 use crate::{
     Database, Error, Limits, Result,
     memory::Memory,
-    storage::{
-        APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, Storage, read_all, recover_replica,
-    },
+    storage::{APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, Storage, read_all},
 };
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
@@ -88,9 +86,11 @@ impl ExportDescriptor {
         }
     }
 }
+/// Maximum snapshot frame a receiver can elect to accept.
+pub const MAX_TRANSFER_BYTES: u64 = 1 << 30;
 impl Offer {
     fn validate(self) -> Result<()> {
-        if !(APPEND_START as u64..=MAX_IMAGE_BYTES as u64).contains(&self.length) {
+        if !(APPEND_START as u64..=MAX_TRANSFER_BYTES).contains(&self.length) {
             return Err(Error::Limit);
         }
         Ok(())
@@ -215,8 +215,7 @@ impl Primary {
         if image_digest(backend, offer.length)? != offer.digest {
             return Err(Error::Corrupt);
         }
-        recover_replica(
-            backend,
+        let (storage, _) = storage.verified_replica(
             &mem,
             self.enrollment.file_identity,
             offer.revision,

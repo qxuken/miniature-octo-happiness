@@ -336,3 +336,177 @@ fn dense_over_four_gib_with_bounded_reader() {
     );
     assert_eq!(fs::metadata(&p).unwrap().len(), physical);
 }
+
+#[cfg(feature = "replication")]
+#[path = "support/capacity_follower.rs"]
+mod capacity_follower;
+#[cfg(feature = "replication")]
+#[test]
+#[ignore = "1 GiB capacity native follower, backup and restore"]
+fn gib_capacity_end_to_end() {
+    let d = Dir::new();
+    let path = d.path("primary");
+    let db = create(&path, FileCapacity::GiB1);
+    let c = db.collection_id(1);
+    let mut bytes = vec![0x63; 1 << 20];
+    let start = Instant::now();
+    for group in 0..240u32 {
+        let mut t = db.begin();
+        for k in group * 4..group * 4 + 4 {
+            bytes[..4].copy_from_slice(&k.to_le_bytes());
+            t.put(c, &k.to_be_bytes(), &db.bytes(&bytes).unwrap())
+                .unwrap();
+        }
+        t.commit().unwrap();
+    }
+    let r = db.retain_snapshot(&db.snapshot()).unwrap();
+    put(&db, 200, b"new");
+    drop(db);
+    let size = fs::metadata(&path).unwrap().len();
+    let t = Instant::now();
+    let view = ReadOnlyDatabase::open_file(&path, limits().into()).unwrap();
+    let open = t.elapsed();
+    let t = Instant::now();
+    view.check().unwrap();
+    let full = t.elapsed();
+    let peak = view.memory_usage().peak_bytes;
+    drop(view);
+    capacity_follower::roundtrip(
+        &path,
+        &d.path("replication"),
+        limits(),
+        r,
+        1 << 30,
+        |s, c, current| {
+            assert_eq!(s.count(c), Ok(960));
+            for k in [0u32, 200, 959] {
+                let val = s.get(c, &k.to_be_bytes()).unwrap().unwrap();
+                let b = val.as_bytes().unwrap();
+                if current && k == 200 {
+                    assert_eq!(b, b"new")
+                } else {
+                    assert_eq!(b.len(), 1 << 20);
+                    assert_eq!(&b[..4], &k.to_le_bytes());
+                    assert!(b[4..].iter().all(|b| *b == 0x63));
+                }
+            }
+        },
+    );
+    println!(
+        "gib primary={size} reader_peak={peak} open={open:?} full={full:?} including shipping/backup/restore={:?}",
+        start.elapsed()
+    );
+}
+
+#[cfg(all(unix, feature = "fault-injection"))]
+#[test]
+fn migration_interrupted_at_each_replacement_barrier() {
+    use storage::CompactionStep::*;
+    const ENV: &str = "WDB_CAPACITY_CHILD_PATH";
+    if let Some(path) = std::env::var_os(ENV) {
+        let point = std::env::var("WDB_CAPACITY_CHILD_CUT").unwrap();
+        storage::migrate_file_with_hook(
+            Path::new(&path),
+            FileFormat::Packed,
+            limits(),
+            move |event| {
+                if format!("{:?}-{}", event.step, event.after) == point {
+                    std::process::exit(71);
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+        panic!("cut was not reached");
+    }
+    let dir = Dir::new();
+    let seed = dir.path("seed");
+    let (old, rev, id) = fixture(&seed);
+    for step in [
+        TargetWrite,
+        TargetSync,
+        CopyMetadata,
+        SyncMetadata,
+        CheckNames,
+        Exchange,
+        SyncDirectory,
+        SyncReplacement,
+        RemoveOld,
+        SyncCleanupDirectory,
+        SyncCleanupFile,
+    ] {
+        for after in [false, true] {
+            let case = dir.path(&format!("{step:?}-{after}"));
+            fs::create_dir(&case).unwrap();
+            let source = case.join("db");
+            fs::copy(&seed, &source).unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "migration_interrupted_at_each_replacement_barrier",
+                ])
+                .env(ENV, &source)
+                .env("WDB_CAPACITY_CHILD_CUT", format!("{step:?}-{after}"))
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(71), "{step:?} {after}");
+            let exchanged = matches!(step, Exchange) && after
+                || matches!(
+                    step,
+                    SyncDirectory
+                        | SyncReplacement
+                        | RemoveOld
+                        | SyncCleanupDirectory
+                        | SyncCleanupFile
+                );
+            expected(
+                &source,
+                old,
+                rev,
+                id,
+                if exchanged {
+                    FileFormat::Packed
+                } else {
+                    FileFormat::V2
+                },
+            );
+            storage::migrate_file(&source, FileFormat::Packed, limits()).unwrap();
+            expected(&source, old, rev, id, FileFormat::Packed);
+        }
+    }
+}
+#[test]
+fn shared_pages_are_relocated_once_across_catalogs() {
+    let d = Dir::new();
+    let p = d.path("source");
+    let mut db = create(&p, FileCapacity::MiB64);
+    let c = db.collection_id(1);
+    for batch in 0..18u32 {
+        let mut t = db.begin();
+        for k in batch * 64..batch * 64 + 64 {
+            let mut b = [41u8; 512];
+            b[..4].copy_from_slice(&k.to_le_bytes());
+            t.put(c, &k.to_be_bytes(), &db.bytes(&b).unwrap()).unwrap();
+        }
+        t.commit().unwrap();
+    }
+    let before = d.path("before");
+    db.compact_to(storage::FileStore::create(&before).unwrap())
+        .unwrap();
+    let old = db.retain_snapshot(&db.snapshot()).unwrap();
+    put(&db, 550, b"replacement");
+    drop(db);
+    let to = d.path("after");
+    storage::backup_file(&p, &to, limits()).unwrap();
+    assert_eq!(
+        fs::metadata(&to).unwrap().len() - fs::metadata(before).unwrap().len(),
+        3 * 4096
+    );
+    let db = Database::open_file(&to, limits()).unwrap();
+    assert_eq!(
+        db.retained_snapshot(old)
+            .unwrap()
+            .count(db.collection_id(1)),
+        Ok(1152)
+    );
+}

@@ -11,6 +11,14 @@ fn seed(target: &str, name: &str, bytes: &[u8]) -> io::Result<()> {
 }
 
 fn main() -> io::Result<()> {
+    for (mode, name, extended) in [(250, "packed-v3", false), (251, "extended-v4", true)] {
+        seed(
+            "open_image_bytes",
+            name,
+            weekend_db_fuzz::packed_fixture(extended),
+        )?;
+        seed("open_structured_image", name, &[mode, 7, 8, 0, 1, 1])?;
+    }
     let image = fixture_image();
     seed("open_image_bytes", "retained-v2.wdb", image)?;
     seed("open_image_bytes", "truncated-header", &image[..REGION])?;

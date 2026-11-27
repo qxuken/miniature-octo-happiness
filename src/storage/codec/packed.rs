@@ -412,7 +412,11 @@ impl Reader<'_> {
         revision: u64,
         count: usize,
     ) -> Result<Collection> {
-        let n = c.count(MAX_OBJECTS)?;
+        let n = c.count(if self.packed.extended() {
+            self.mem.limits().max_entries
+        } else {
+            MAX_OBJECTS
+        })?;
         if n > count {
             return Err(Error::Corrupt);
         }
