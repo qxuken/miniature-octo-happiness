@@ -1,0 +1,76 @@
+//! Sorted blocks of reachable offsets. File holes consume no index entries.
+use super::{ChargedVec, Error, Memory, Result};
+
+const BLOCK: usize = 128;
+pub(super) struct Offsets<T>(ChargedVec<ChargedVec<(u64, T)>>);
+impl<T: Clone> Offsets<T> {
+    pub(super) fn new() -> Self {
+        Self(ChargedVec::new())
+    }
+    fn position(&self, off: u64) -> (usize, usize) {
+        let b = self
+            .0
+            .partition_point(|block| block[0].0 <= off)
+            .saturating_sub(1);
+        let i = self
+            .0
+            .get(b)
+            .map_or(0, |block| block.partition_point(|(start, _)| *start < off));
+        (b, i)
+    }
+    pub(super) fn get(&self, off: u64) -> Option<&T> {
+        let (b, i) = self.position(off);
+        self.0
+            .get(b)?
+            .get(i)
+            .filter(|(o, _)| *o == off)
+            .map(|(_, v)| v)
+    }
+    pub(super) fn insert(&mut self, mem: &Memory, off: u64, v: T) -> Result<()> {
+        let (mut b, mut i) = self.position(off);
+        if self.0.is_empty() {
+            mem.reserve_geometric(&mut self.0, 1, usize::MAX)?;
+            self.0.push(ChargedVec::new());
+        }
+        if self.0[b].get(i).is_some_and(|x| x.0 == off) {
+            return Err(Error::Corrupt);
+        }
+        if self.0[b].len() == BLOCK {
+            let half = BLOCK / 2;
+            let mut next = ChargedVec::new();
+            mem.reserve(&mut next, half + 1)?;
+            next.extend_from_slice(&self.0[b][half..]);
+            mem.reserve_geometric(&mut self.0, 1, usize::MAX)?;
+            self.0[b].truncate(half);
+            self.0.push(next);
+            self.0[b + 1..].rotate_right(1);
+            if i >= half {
+                b += 1;
+                i -= half;
+            }
+        }
+        let block = &mut self.0[b];
+        mem.reserve_geometric(block, 1, BLOCK)?;
+        block.push((off, v));
+        block[i..].rotate_right(1);
+        Ok(())
+    }
+}
+impl Offsets<u64> {
+    pub(super) fn check_free(&self, start: u64, end: u64) -> Result<()> {
+        let (b, i) = self.position(start);
+        let Some(block) = self.0.get(b) else {
+            return Ok(());
+        };
+        let prev = if i > 0 {
+            block.get(i - 1)
+        } else {
+            b.checked_sub(1).map(|p| self.0[p].last().unwrap())
+        };
+        let next = block.get(i).or_else(|| self.0.get(b + 1).map(|p| &p[0]));
+        if prev.is_some_and(|p| p.1 > start) || next.is_some_and(|n| end > n.0) {
+            return Err(Error::Corrupt);
+        }
+        Ok(())
+    }
+}

@@ -1,4 +1,17 @@
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+fn target_format(s: &std::ffi::OsStr) -> weekend_db::Result<weekend_db::storage::FileFormat> {
+    use weekend_db::storage::{FileCapacity, FileFormat};
+    Ok(match s.to_str() {
+        Some("v3") => FileFormat::Packed,
+        Some("64MiB") => FileFormat::Extended(FileCapacity::MiB64),
+        Some("256MiB") => FileFormat::Extended(FileCapacity::MiB256),
+        Some("1GiB") => FileFormat::Extended(FileCapacity::GiB1),
+        Some("unbounded") => FileFormat::Extended(FileCapacity::Unbounded),
+        _ => return Err(weekend_db::Error::Invalid),
+    })
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 fn export_bytes(
     file: &mut impl weekend_db::storage::ByteStore,
     bytes: &[u8],
@@ -22,6 +35,33 @@ fn run(args: &[std::ffi::OsString]) -> weekend_db::Result<()> {
     use std::io::Read;
     use weekend_db::{Limits, storage};
     match args {
+        [command, path, target] if command == "migrate" => {
+            let format = target_format(target)?;
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            {
+                let stats = storage::migrate_file(path, format, Limits::default())?;
+                println!(
+                    "migrated {} bytes to {} bytes",
+                    stats.before_bytes, stats.after_bytes
+                );
+                Ok(())
+            }
+            #[cfg(windows)]
+            {
+                let _ = (path, format);
+                Err(weekend_db::Error::UnsupportedPlatform)
+            }
+        }
+        [command, source, destination, target] if command == "migrate-to" => {
+            let stats = storage::migrate_file_to(
+                source,
+                destination,
+                target_format(target)?,
+                Limits::default(),
+            )?;
+            println!("verified migrated copy {} bytes", stats.after_bytes);
+            Ok(())
+        }
         [command, source, destination] if command == "salvage" => {
             let report = storage::salvage_file(source, destination, Limits::default())?;
             println!(

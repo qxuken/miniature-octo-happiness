@@ -78,7 +78,7 @@ struct State {
 }
 #[cfg(feature = "replication")]
 pub(crate) struct ReplicationSnapshot {
-    packed: bool,
+    packed: crate::storage::FileFormat,
     pub(crate) head: Shared<Head>,
     pub(crate) identity: [u8; 16],
     next_collection: u64,
@@ -149,7 +149,7 @@ impl Publication<'_> {
 #[derive(Default)]
 pub struct DatabaseOptions {
     pub(crate) paged_reads: bool,
-    packed_pages: bool,
+    packed_pages: crate::storage::FileFormat,
     pub limits: Limits,
     pub(crate) allocator: AllocatorHandle,
 }
@@ -174,7 +174,13 @@ impl DatabaseOptions {
     /// Create new images with packed, copy-on-write directory pages (format 3).
     /// Existing images retain the format selected at creation.
     pub fn with_packed_pages(mut self) -> Self {
-        self.packed_pages = true;
+        self.packed_pages = crate::storage::FileFormat::Packed;
+        self.with_paged_reads()
+    }
+
+    /// Create a format-4 file with the given durable capacity. Open discovers it from disk.
+    pub fn with_file_capacity(mut self, capacity: crate::storage::FileCapacity) -> Self {
+        self.packed_pages = crate::storage::FileFormat::Extended(capacity);
         self.with_paged_reads()
     }
 
@@ -337,7 +343,7 @@ impl Database {
         let storage = writer.as_ref().ok_or(Error::Invalid)?;
         let state = self.read_state();
         Ok(ReplicationSnapshot {
-            packed: storage.packed.is_some(),
+            packed: storage.format,
             head: state.head.clone(),
             identity: storage.identity(),
             next_collection: state.next_collection,

@@ -115,6 +115,13 @@ impl<'a, 'm> Builder<'a, 'm> {
     }
     fn edit(&mut self, (key, record): Edit<'_>) -> Result<()> {
         if let Some(r) = record {
+            if self.encoder.packed.as_ref().is_some_and(|s| s.3.extended())
+                && r.value.kind() == Kind::Bytes
+                && r.value.as_bytes()?.len() > LEAF_BYTES
+            {
+                let blob = Blob::write(self.encoder, r.value.as_bytes()?, r.revision)?;
+                return self.emit(key, r.revision, &blob.bytes());
+            }
             let mut row = std::mem::replace(&mut self.row, Writer::new(self.encoder.mem));
             row.bytes.clear();
             encode_value(&mut row, &r.value)?;
@@ -197,6 +204,7 @@ impl Encoder<'_> {
         if let Some(base) = &c.base
             && let Backing::Packed(t) = &base.directory
             && old.is_none()
+            && t.source.3.extended() == source.3.extended()
             && c.records.len() == 0
             && base.deleted.len() == 0
         {
@@ -269,6 +277,7 @@ impl Encoder<'_> {
             w.int(c.revision)?;
             w.int(c.len() as u64)?;
             w.int(tree.branches.len() as u64)?;
+            self.relocation.select(tree.source.id());
             for b in &tree.branches {
                 w.int(b.offset)?;
             }
@@ -301,37 +310,57 @@ impl Encoder<'_> {
 // emitted once. It is dropped before destination verification.
 pub(in crate::storage::codec) struct Relocation {
     source: usize,
-    pages: ChargedVec<Option<VerifiedPage>>,
+    pages: extents::Offsets<VerifiedPage>,
+    blobs: extents::Offsets<Blob>,
 }
 impl Relocation {
     pub(in crate::storage::codec) fn new() -> Self {
         Self {
             source: 0,
-            pages: ChargedVec::new(),
+            pages: extents::Offsets::new(),
+            blobs: extents::Offsets::new(),
         }
     }
-    fn index(&mut self, mem: &Memory, source: usize, offset: u64) -> Result<usize> {
+    fn select(&mut self, source: usize) {
         if self.source != source {
-            self.pages.clear();
+            self.pages = extents::Offsets::new();
+            self.blobs = extents::Offsets::new();
             self.source = source;
         }
-        let i = usize::try_from(offset / REGION as u64).map_err(|_| Error::Limit)?;
-        if i >= self.pages.len() {
-            let n = i + 1 - self.pages.len();
-            mem.reserve_geometric(&mut self.pages, n, MAX_OBJECTS)?;
-            self.pages.resize(i + 1, None);
-        }
-        Ok(i)
     }
 }
+
 impl Encoder<'_> {
+    fn relocate_blobs(&mut self, src: &Source, raw: &mut [u8]) -> Result<()> {
+        let mut pos = 0;
+        while pos < raw.len() {
+            let mut cursor = Cursor::new(&raw[pos..]);
+            let entry = entry(self.mem, &mut cursor)?;
+            let blob = Blob::parse(entry.value)?;
+            let born = entry.revision;
+            pos += cursor.pos;
+            if let Some(blob) = blob {
+                let new = if let Some(copy) = self.relocation.blobs.get(blob.offset) {
+                    *copy
+                } else {
+                    let data = src.access(|io| blob.read(io, self.mem))?;
+                    let copy = Blob::write(self, &data, born)?;
+                    self.relocation.blobs.insert(self.mem, blob.offset, copy)?;
+                    copy
+                };
+                let descriptor = new.bytes();
+                raw[pos - descriptor.len()..pos].copy_from_slice(&descriptor);
+            }
+        }
+        Ok(())
+    }
     fn copy_tree(&mut self, tree: &Tree, destination: &Source) -> Result<Shared<Tree>> {
         let mem = self.mem;
         let mut branches = ChargedVec::new();
         mem.reserve(&mut branches, tree.branches.len())?;
+        self.relocation.select(tree.source.id());
         for b in &tree.branches {
-            let bi = self.relocation.index(mem, tree.source.id(), b.offset)?;
-            if let Some(VerifiedPage::Branch(old)) = &self.relocation.pages[bi] {
+            if let Some(VerifiedPage::Branch(old)) = self.relocation.pages.get(b.offset) {
                 branches.push(old.clone());
                 continue;
             }
@@ -339,26 +368,34 @@ impl Encoder<'_> {
             mem.reserve(&mut leaves, b.leaves.len())?;
             let mut pointers = Writer::new(mem);
             for l in &b.leaves {
-                let i = self.relocation.index(mem, tree.source.id(), l.offset)?;
-                let copy = if let Some(VerifiedPage::Leaf(old)) = &self.relocation.pages[i] {
-                    old.clone()
-                } else {
-                    let raw = tree.source.access(|io| l.read(io, mem))?;
-                    let (offset, end) = self.object_born(LEAF, &raw, l.born)?;
-                    let copy = mem.shared(Leaf {
-                        first: mem.copy(&l.first)?,
-                        last: mem.copy(&l.last)?,
-                        offset,
-                        end,
-                        len: l.len,
-                        digest: l.digest,
-                        count: l.count,
-                        max_revision: l.max_revision,
-                        born: l.born,
-                    })?;
-                    self.relocation.pages[i] = Some(VerifiedPage::Leaf(copy.clone()));
-                    copy
-                };
+                let copy =
+                    if let Some(VerifiedPage::Leaf(old)) = self.relocation.pages.get(l.offset) {
+                        old.clone()
+                    } else {
+                        let mut raw = tree.source.access(|io| l.read(io, mem))?;
+                        if tree.source.3.extended() {
+                            self.relocate_blobs(&tree.source, &mut raw)?;
+                        }
+
+                        let (offset, end) = self.object_born(LEAF, &raw, l.born)?;
+                        let copy = mem.shared(Leaf {
+                            first: mem.copy(&l.first)?,
+                            last: mem.copy(&l.last)?,
+                            offset,
+                            end,
+                            len: l.len,
+                            digest: crc(&raw),
+                            count: l.count,
+                            max_revision: l.max_revision,
+                            born: l.born,
+                        })?;
+                        self.relocation.pages.insert(
+                            mem,
+                            l.offset,
+                            VerifiedPage::Leaf(copy.clone()),
+                        )?;
+                        copy
+                    };
                 pointers.int(copy.offset)?;
                 leaves.push(copy);
             }
@@ -369,7 +406,9 @@ impl Encoder<'_> {
                 born: b.born,
                 leaves,
             })?;
-            self.relocation.pages[bi] = Some(VerifiedPage::Branch(copy.clone()));
+            self.relocation
+                .pages
+                .insert(mem, b.offset, VerifiedPage::Branch(copy.clone()))?;
             branches.push(copy);
         }
         mem.shared(Tree {

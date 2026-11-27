@@ -1,0 +1,24 @@
+name: Storage capacity qualification
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/storage-capacity-qualification]
+permissions:
+  contents: read
+concurrency:
+  group: capacity-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.100.0 --profile minimal
+      - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test packed_directory --test storage_capacity
+      - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test packed_directory -- --ignored --nocapture
+      - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test storage_capacity -- --ignored --nocapture --test-threads=1

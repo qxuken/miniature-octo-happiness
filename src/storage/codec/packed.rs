@@ -2,6 +2,8 @@
 //! leaves, and each leaf contains whole key/revision/value records.
 use super::*;
 use crate::engine::{Backing, Base};
+pub(super) mod blob;
+use blob::Blob;
 mod write;
 pub(super) use write::Relocation;
 
@@ -175,11 +177,23 @@ pub(crate) struct Tree {
     branches: ChargedVec<Shared<Branch>>,
 }
 impl Tree {
+    fn load(&self, mem: &Memory, raw: &[u8]) -> Result<Value> {
+        if let Some(blob) = Blob::parse(raw)? {
+            if !self.source.3.extended() {
+                return Err(Error::Corrupt);
+            }
+            let bytes = self.source.access(|io| blob.read(io, mem))?;
+            Value::bytes_new(mem, &bytes)
+        } else {
+            decode(mem, raw)
+        }
+    }
+
     pub(crate) fn find(&self, mem: &Memory, key: &[u8]) -> Result<Option<Record>> {
         self.point(mem, key, |r| {
             Ok(Record {
                 revision: r.revision,
-                value: decode(mem, r.value)?,
+                value: self.load(mem, r.value)?,
             })
         })
     }
@@ -231,7 +245,7 @@ impl Tree {
                         r.key,
                         Record {
                             revision: r.revision,
-                            value: decode(mem, r.value)?,
+                            value: self.load(mem, r.value)?,
                         },
                     )?;
                 }
@@ -246,12 +260,37 @@ enum VerifiedPage {
     Leaf(Shared<Leaf>),
     Branch(Shared<Branch>),
 }
-pub(super) struct PageCache(ChargedVec<Option<VerifiedPage>>);
+pub(super) struct PageCache(
+    ChargedVec<Option<VerifiedPage>>,
+    extents::Offsets<VerifiedPage>,
+);
 impl PageCache {
     pub(super) fn new() -> Self {
-        Self(ChargedVec::new())
+        Self(ChargedVec::new(), extents::Offsets::new())
     }
-    fn index(&mut self, mem: &Memory, regions: usize, off: u64, parent: u64) -> Result<usize> {
+    fn get(&self, i: usize) -> Option<&VerifiedPage> {
+        if self.0.is_empty() {
+            self.1.get(i as u64)
+        } else {
+            self.0[i].as_ref()
+        }
+    }
+    fn save(&mut self, mem: &Memory, i: usize, p: VerifiedPage) -> Result<()> {
+        if self.0.is_empty() {
+            self.1.insert(mem, i as u64, p)
+        } else {
+            self.0[i] = Some(p);
+            Ok(())
+        }
+    }
+    fn index(
+        &mut self,
+        mem: &Memory,
+        regions: usize,
+        off: u64,
+        parent: u64,
+        sparse: bool,
+    ) -> Result<usize> {
         if off < APPEND_START as u64 || off >= parent || !off.is_multiple_of(REGION as u64) {
             return Err(Error::Corrupt);
         }
@@ -259,7 +298,7 @@ impl PageCache {
         if i >= regions {
             return Err(Error::Corrupt);
         }
-        if self.0.is_empty() {
+        if !sparse && self.0.is_empty() {
             mem.reserve(&mut self.0, regions)?;
             self.0.resize(regions, None);
         }
@@ -268,10 +307,14 @@ impl PageCache {
 }
 impl Reader<'_> {
     fn packed_leaf(&mut self, off: u64, parent: u64) -> Result<Shared<Leaf>> {
-        let i = self
-            .page_cache
-            .index(self.mem, self.region_count, off, parent)?;
-        if let Some(page) = &self.page_cache.0[i] {
+        let i = self.page_cache.index(
+            self.mem,
+            self.region_count,
+            off,
+            parent,
+            self.packed.extended(),
+        )?;
+        if let Some(page) = self.page_cache.get(i) {
             return match page {
                 VerifiedPage::Leaf(l) if l.end <= parent => Ok(l.clone()),
                 _ => Err(Error::Corrupt),
@@ -291,7 +334,11 @@ impl Reader<'_> {
             {
                 return Err(Error::Corrupt);
             }
-            decode(self.mem, r.value)?;
+            if let Some(blob) = Blob::parse(r.value)? {
+                self.verify_blob(blob, off, r.revision)?;
+            } else {
+                decode(self.mem, r.value)?;
+            }
             first.get_or_insert(r.key);
             prev = Some(r.key);
             count += 1;
@@ -311,15 +358,20 @@ impl Reader<'_> {
             max_revision,
             born: obj.born,
         })?;
-        self.page_cache.0[i] = Some(VerifiedPage::Leaf(leaf.clone()));
+        self.page_cache
+            .save(self.mem, i, VerifiedPage::Leaf(leaf.clone()))?;
         self.scratch = obj.payload;
         Ok(leaf)
     }
     fn packed_branch(&mut self, off: u64, parent: u64) -> Result<Shared<Branch>> {
-        let i = self
-            .page_cache
-            .index(self.mem, self.region_count, off, parent)?;
-        if let Some(page) = &self.page_cache.0[i] {
+        let i = self.page_cache.index(
+            self.mem,
+            self.region_count,
+            off,
+            parent,
+            self.packed.extended(),
+        )?;
+        if let Some(page) = self.page_cache.get(i) {
             return match page {
                 VerifiedPage::Branch(b) if b.end <= parent => Ok(b.clone()),
                 _ => Err(Error::Corrupt),
@@ -349,7 +401,8 @@ impl Reader<'_> {
             born: obj.born,
             leaves,
         })?;
-        self.page_cache.0[i] = Some(VerifiedPage::Branch(branch.clone()));
+        self.page_cache
+            .save(self.mem, i, VerifiedPage::Branch(branch.clone()))?;
         Ok(branch)
     }
     pub(super) fn packed_collection(
@@ -391,7 +444,11 @@ impl Reader<'_> {
                             r.key,
                             Record {
                                 revision: r.revision,
-                                value: decode(self.mem, r.value)?,
+                                value: if let Some(blob) = Blob::parse(r.value)? {
+                                    Value::bytes_new(self.mem, &blob.read(self.backend, self.mem)?)?
+                                } else {
+                                    decode(self.mem, r.value)?
+                                },
                             },
                         )?;
                     }

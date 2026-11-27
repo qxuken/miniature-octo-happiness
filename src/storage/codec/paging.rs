@@ -17,7 +17,7 @@ impl Drop for Lease {
     }
 }
 #[derive(Clone)]
-pub(crate) struct Source(Shared<Mutex<Lease>>, usize, usize);
+pub(crate) struct Source(Shared<Mutex<Lease>>, usize, usize, pub(super) FileFormat);
 impl Source {
     pub(crate) fn acquire<B: ByteStore + 'static>(backend: B, mem: &Memory) -> Result<Self> {
         let window = backend.read_window();
@@ -33,7 +33,16 @@ impl Source {
         let id = NEXT
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
             .map_err(|_| Error::Exhausted)?;
-        Ok(Self(mem.shared(Mutex::new(lease))?, window, id))
+        Ok(Self(
+            mem.shared(Mutex::new(lease))?,
+            window,
+            id,
+            FileFormat::V2,
+        ))
+    }
+    pub(in crate::storage) fn with_format(mut self, format: FileFormat) -> Self {
+        self.3 = format;
+        self
     }
     pub(crate) fn id(&self) -> usize {
         self.2

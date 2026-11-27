@@ -39,11 +39,7 @@ fn information(
         });
     }
     Ok(ImageInfo {
-        format_version: if recovered.packed {
-            codec::PACKED_VERSION
-        } else {
-            crate::version::FORMAT_VERSION
-        },
+        format_version: recovered.packed.version(),
         identity: recovered.identity,
         revision: recovered.head.revision,
         data_revision: recovered.head.data_revision,
@@ -83,6 +79,17 @@ fn copy_verified<B: ByteStore + 'static>(
     destination: B,
     mem: &Memory,
 ) -> Result<CompactionStats> {
+    let format = recovered.packed;
+    copy_verified_as(source, recovered, destination, mem, format)
+}
+
+fn copy_verified_as<B: ByteStore + 'static>(
+    source: &mut Storage,
+    recovered: codec::Recovered,
+    destination: B,
+    mem: &Memory,
+    format: super::FileFormat,
+) -> Result<CompactionStats> {
     let before_bytes = source.backend.length()?;
     let mut destination = {
         let codec::Recovered {
@@ -90,7 +97,6 @@ fn copy_verified<B: ByteStore + 'static>(
             next_collection,
             identity,
             retention,
-            packed,
             cache,
             data_cache,
             ..
@@ -98,14 +104,15 @@ fn copy_verified<B: ByteStore + 'static>(
         // File-local offsets belong to the source. The copy encodes its own.
         drop(cache);
         drop(data_cache);
-        Storage::create_format(
+        Storage::create_image(
             destination,
             mem,
             &head,
             next_collection,
             identity,
             &retention,
-            packed,
+            format,
+            true,
         )?
     };
     // The offline copy only returns sizes. Release cached references before
@@ -162,6 +169,24 @@ pub fn backup_file(
             .read_locked(&mem, None)?;
     let destination = super::FileStore::create(destination)?;
     copy_verified(&mut source, recovered, destination, &mem)
+}
+
+/// Migrate into an exclusively created, verified file. The source remains leased
+/// through verification, and a failed destination may be discarded and retried.
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
+pub fn migrate_file_to(
+    source: impl AsRef<std::path::Path>,
+    destination: impl AsRef<std::path::Path>,
+    format: super::FileFormat,
+    limits: Limits,
+) -> Result<CompactionStats> {
+    let mem = Memory::new(limits)?;
+    let file = super::FileStore::open_read_only(source)?;
+    let pages = codec::paging::Source::acquire(file, &mem)?;
+    let (mut source, recovered, _) =
+        Storage::locked(pages.clone(), &mem)?.read_locked(&mem, Some(pages))?;
+    let dest = super::FileStore::create(destination)?;
+    copy_verified_as(&mut source, recovered, dest, &mem, format)
 }
 
 /// Restore a verified backup to a new file, preserving identity and all roots.

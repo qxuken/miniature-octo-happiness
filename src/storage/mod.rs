@@ -9,11 +9,15 @@ pub use diagnostics::{
     NativeIoCategory, NativeIoDiagnostic, NativeIoOperation, StorageFailure,
     VerificationDiagnostic, VerificationStage,
 };
+mod format;
+pub use format::{FileCapacity, FileFormat};
 mod inspection;
 mod logical;
 pub use inspection::{ImageInfo, RetainedInfo, backup_on, inspect_on, inspect_on_with_options};
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
-pub use inspection::{backup_file, inspect_file, inspect_file_with_options, restore_file};
+pub use inspection::{
+    backup_file, inspect_file, inspect_file_with_options, migrate_file_to, restore_file,
+};
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
 pub use logical::{export_logical_file, import_logical_file};
 pub use logical::{export_logical_on, import_logical_on};
@@ -42,8 +46,6 @@ mod windows_open;
 mod windows_path;
 #[cfg(any(windows, test))]
 mod windows_rng;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-pub use file::FileStore;
 #[cfg(target_os = "macos")]
 pub use file::FileStore as MacFileStore;
 #[cfg(target_os = "linux")]
@@ -55,6 +57,8 @@ pub(crate) use file::compact_file;
     any(test, feature = "fault-injection")
 ))]
 pub use file::{CompactionEvent, CompactionStep, compact_file_with_hook};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub use file::{FileStore, migrate_file};
 #[cfg(target_os = "linux")]
 pub(crate) use linux::identity as file_identity;
 #[cfg(target_os = "macos")]
@@ -119,6 +123,7 @@ pub trait ByteStore: Send {
 }
 
 pub(crate) struct Storage {
+    pub(crate) format: FileFormat,
     pub(crate) packed: Option<codec::paging::Source>,
     pub(crate) rebased: Option<Shared<Head>>,
     backend: Box<dyn ByteStore, crate::AllocatorHandle>,
@@ -161,18 +166,18 @@ impl Storage {
     pub(crate) fn space(&mut self) -> Result<StorageSpace> {
         self.guard()?;
         let physical_bytes = self.backend.length()?;
-        if physical_bytes < self.end || physical_bytes > MAX_IMAGE_BYTES as u64 {
+        if physical_bytes < self.end || physical_bytes > self.format.capacity() {
             self.poisoned = true;
             return Err(Error::Corrupt);
         }
-        let next_append_offset = codec::align(physical_bytes)?;
+        let next_append_offset = codec::align_to(physical_bytes, self.format.capacity())?;
         Ok(StorageSpace {
             revision: self.revision,
             physical_bytes,
             committed_bytes: self.end,
             next_append_offset,
-            capacity_bytes: MAX_IMAGE_BYTES as u64,
-            remaining_append_bytes: MAX_IMAGE_BYTES as u64 - next_append_offset,
+            capacity_bytes: self.format.capacity(),
+            remaining_append_bytes: self.format.capacity() - next_append_offset,
         })
     }
     pub(crate) fn identity(&self) -> [u8; 16] {
@@ -190,9 +195,27 @@ impl Storage {
         next_collection: u64,
         retention: &Retention,
     ) -> Result<(Self, CompactionStats)> {
+        self.encode_copy_as(
+            destination,
+            mem,
+            head,
+            next_collection,
+            retention,
+            self.format,
+        )
+    }
+    pub(crate) fn encode_copy_as<B: ByteStore + 'static>(
+        &mut self,
+        destination: B,
+        mem: &Memory,
+        head: &Head,
+        next_collection: u64,
+        retention: &Retention,
+        format: FileFormat,
+    ) -> Result<(Self, CompactionStats)> {
         self.guard()?;
         let before_bytes = self.backend.length()?;
-        if before_bytes < self.end || before_bytes > MAX_IMAGE_BYTES as u64 {
+        if before_bytes < self.end || before_bytes > self.format.capacity() {
             return Err(Error::Corrupt);
         }
         let (copy, after_bytes) = Self::create_compact(
@@ -202,7 +225,7 @@ impl Storage {
             next_collection,
             self.identity,
             retention,
-            self.packed.is_some(),
+            format,
         )?;
         let stats = CompactionStats {
             before_bytes,
@@ -217,11 +240,11 @@ impl Storage {
         next_collection: u64,
         identity: [u8; 16],
         retention: &Retention,
-        packed: bool,
+        packed: FileFormat,
     ) -> Result<(Self, u64)> {
         // Encode only the supplied graphs. Release the encoder caches before
         // independent verification builds its own graph.
-        let mut copy = Self::create_format(
+        let mut copy = Self::create_image(
             destination,
             mem,
             head,
@@ -229,6 +252,7 @@ impl Storage {
             identity,
             retention,
             packed,
+            true,
         )?;
         copy.release_serialization_caches();
         let bytes = copy.end;
@@ -254,6 +278,7 @@ impl Storage {
         let mut backend: Box<dyn ByteStore, crate::AllocatorHandle> = mem.boxed(backend)?;
         backend.lock()?;
         Ok(Self {
+            format: FileFormat::V2,
             packed: None,
             rebased: None,
             backend,
@@ -280,7 +305,7 @@ impl Storage {
             next_collection,
             identity,
             retention,
-            false,
+            FileFormat::V2,
         )
     }
     fn share(self, mem: &Memory) -> Result<(Self, codec::paging::Source)> {
@@ -294,7 +319,28 @@ impl Storage {
         next_collection: u64,
         identity: [u8; 16],
         retention: &Retention,
-        packed: bool,
+        packed: FileFormat,
+    ) -> Result<Self> {
+        Self::create_image(
+            backend,
+            mem,
+            head,
+            next_collection,
+            identity,
+            retention,
+            packed,
+            false,
+        )
+    }
+    pub(crate) fn create_image<B: ByteStore + 'static>(
+        backend: B,
+        mem: &Memory,
+        head: &Head,
+        next_collection: u64,
+        identity: [u8; 16],
+        retention: &Retention,
+        packed: FileFormat,
+        fresh_copy: bool,
     ) -> Result<Self> {
         let mut storage = Self::locked(backend, mem)?;
         if identity == [0; 16] {
@@ -305,11 +351,20 @@ impl Storage {
         }
         storage.identity = identity;
         // Prepare everything before modifying the previously empty byte store.
-        let candidate = if packed {
+        let candidate = if packed != FileFormat::V2 {
             let source;
             (storage, source) = storage.share(mem)?;
             storage.identity = identity;
+            let source = source.with_format(packed);
             storage.packed = Some(source.clone());
+            let append = if fresh_copy {
+                codec::AppendBytes::FreshFile {
+                    destination: source.clone(),
+                    offset: APPEND_START as u64,
+                }
+            } else {
+                codec::AppendBytes::Segmented(crate::memory::ChargedVec::new())
+            };
             codec::encode_with_append(
                 mem,
                 head,
@@ -319,12 +374,13 @@ impl Storage {
                 None,
                 None,
                 retention,
-                codec::AppendBytes::Segmented(crate::memory::ChargedVec::new()),
+                append,
                 Some(source),
             )?
         } else {
             codec::encode_fresh(mem, head, next_collection, identity, retention)?
         };
+        storage.format = packed;
         let header = codec::file_header(identity, packed);
         write_all(&mut *storage.backend, 0, &header)?;
         let zero = [0; REGION];
@@ -353,14 +409,16 @@ impl Storage {
         source: Option<codec::paging::Source>,
     ) -> Result<(Self, codec::Recovered, usize)> {
         let header = codec::read_header(&mut *self.backend)?;
-        let source = if header.packed && source.is_none() {
+        let source = if header.packed != FileFormat::V2 && source.is_none() {
             let (shared, s) = self.share(mem)?;
             self = shared;
             Some(s)
         } else {
             source
         };
-        if header.packed {
+        self.format = header.packed;
+        let source = source.map(|s| s.with_format(header.packed));
+        if header.packed != FileFormat::V2 {
             self.packed = source.clone();
         }
         let id = source.as_ref().map_or(0, |s| s.id());
@@ -432,11 +490,11 @@ impl Storage {
                 return Err(Error::Io);
             }
         };
-        if length < self.end || length > MAX_IMAGE_BYTES as u64 {
+        if length < self.end || length > self.format.capacity() {
             self.poisoned = true;
             return Err(Error::Corrupt);
         }
-        let start = codec::align(length)?;
+        let start = codec::align_to(length, self.format.capacity())?;
         let candidate = if let Some(s) = &self.packed {
             codec::encode_with_append(
                 mem,
@@ -1001,7 +1059,7 @@ mod decision_tests {
             1,
             source.identity,
             &retention,
-            false,
+            FileFormat::V2,
         )
         .unwrap();
         assert!(copy.cache.is_none() && copy.data_cache.is_none());

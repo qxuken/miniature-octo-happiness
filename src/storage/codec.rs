@@ -1,7 +1,8 @@
+mod extents;
 pub(crate) mod packed;
 pub(crate) mod paging;
 use super::diagnostics::{self, VerificationStage as Stage};
-use super::{APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, read_all, write_all};
+use super::{APPEND_START, ByteStore, FileFormat, MAX_IMAGE_BYTES, REGION, read_all, write_all};
 use crate::memory::ChargedVec;
 use crate::{
     Error, Kind, Result, Value,
@@ -13,6 +14,7 @@ use paging::{Directory, Graph, Shape, Source};
 
 const VERSION: u32 = crate::version::FORMAT_VERSION;
 pub(crate) const PACKED_VERSION: u32 = 3;
+const EXTENDED_VERSION: u32 = 4;
 const MAX_OBJECTS: usize = MAX_IMAGE_BYTES / REGION;
 const OBJECT_HEADER: usize = 64;
 const VALUE: u32 = 1;
@@ -93,11 +95,14 @@ fn u32_at(bytes: &[u8], at: usize) -> u32 {
     u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap())
 }
 pub(crate) fn align(n: u64) -> Result<u64> {
+    align_to(n, MAX_IMAGE_BYTES as u64)
+}
+pub(super) fn align_to(n: u64, capacity: u64) -> Result<u64> {
     let value = n
         .checked_add(REGION as u64 - 1)
         .map(|n| n / REGION as u64 * REGION as u64)
         .ok_or(Error::Limit)?;
-    if value > MAX_IMAGE_BYTES as u64 {
+    if value > capacity {
         Err(Error::Limit)
     } else {
         Ok(value)
@@ -105,17 +110,25 @@ pub(crate) fn align(n: u64) -> Result<u64> {
 }
 #[cfg(test)]
 pub(crate) fn header(identity: [u8; 16]) -> [u8; REGION] {
-    file_header(identity, false)
+    file_header(identity, FileFormat::V2)
 }
-pub(super) fn file_header(identity: [u8; 16], packed: bool) -> [u8; REGION] {
+pub(super) fn file_header(identity: [u8; 16], packed: FileFormat) -> [u8; REGION] {
     let mut out = [0; REGION];
     out[..8].copy_from_slice(b"WEEKDB01");
-    put32(&mut out, 8, if packed { PACKED_VERSION } else { VERSION });
+    put32(&mut out, 8, packed.version());
     put64(&mut out, 16, REGION as u64);
     put64(&mut out, 24, APPEND_START as u64);
     out[32..48].copy_from_slice(&identity);
-    put64(&mut out, 48, MAX_IMAGE_BYTES as u64);
-    put64(&mut out, 56, MAX_OBJECTS as u64);
+    put64(&mut out, 48, packed.capacity());
+    put64(
+        &mut out,
+        56,
+        if packed.extended() {
+            0
+        } else {
+            MAX_OBJECTS as u64
+        },
+    );
     let crc = checksum(&out, 64);
     put64(&mut out, 64, crc);
     out
@@ -172,7 +185,6 @@ fn parse_metadata(
     if slot.index != (slot.revision & 1) as usize
         || u64_at(bytes, 56) != slot.revision.saturating_sub(1)
         || slot.end > length
-        || slot.end > MAX_IMAGE_BYTES as u64
         || !slot.end.is_multiple_of(REGION as u64)
         || slot.descriptor < APPEND_START as u64
         || !slot.descriptor.is_multiple_of(REGION as u64)
@@ -428,6 +440,7 @@ pub(crate) struct Candidate {
 impl Candidate {
     pub(super) fn write_append(&self, backend: &mut dyn ByteStore) -> Result<()> {
         let segments = match &self.bytes {
+            AppendBytes::FreshFile { .. } => return Ok(()),
             AppendBytes::Contiguous(bytes) => std::slice::from_ref(bytes),
             AppendBytes::Segmented(segments) => segments.as_slice(),
         };
@@ -446,6 +459,11 @@ impl Candidate {
 const APPEND_SEGMENT_BYTES: usize = 16 * REGION;
 
 pub(super) enum AppendBytes {
+    /// Used only for a new, unpublished copy. Failure leaves the source intact.
+    FreshFile {
+        destination: Source,
+        offset: u64,
+    },
     Contiguous(ChargedVec<u8>),
     Segmented(ChargedVec<ChargedVec<u8>>),
 }
@@ -458,6 +476,17 @@ impl AppendBytes {
         maximum: usize,
     ) -> Result<()> {
         match self {
+            Self::FreshFile {
+                destination,
+                offset,
+            } => {
+                for part in parts {
+                    if !part.is_empty() {
+                        write_all(destination, *offset, part)?;
+                        *offset = offset.checked_add(part.len() as u64).ok_or(Error::Limit)?;
+                    }
+                }
+            }
             Self::Contiguous(bytes) => {
                 mem.reserve_geometric(bytes, size, maximum)?;
                 for part in parts {
@@ -553,14 +582,22 @@ impl Encoder<'_> {
         self.object_born(kind, payload, self.revision)
     }
     fn object_born(&mut self, kind: u32, payload: &[u8], born: u64) -> Result<(u64, u64)> {
+        self.object_with_crc(kind, payload, born)
+            .map(|(off, end, _)| (off, end))
+    }
+    fn object_with_crc(&mut self, kind: u32, payload: &[u8], born: u64) -> Result<(u64, u64, u64)> {
         let length = OBJECT_HEADER
             .checked_add(payload.len())
             .ok_or(Error::Limit)?;
         let size = align(length as u64)? as usize;
         let offset = self.end;
+        let capacity = self
+            .packed
+            .as_ref()
+            .map_or(MAX_IMAGE_BYTES as u64, |s| s.3.capacity());
         let end = offset
             .checked_add(size as u64)
-            .filter(|n| *n <= MAX_IMAGE_BYTES as u64)
+            .filter(|n| *n <= capacity)
             .ok_or(Error::Limit)?;
         let mut header = [0; OBJECT_HEADER];
         header[..8].copy_from_slice(b"WDBOBJ01");
@@ -576,10 +613,10 @@ impl Encoder<'_> {
             self.mem,
             [&header, payload, padding],
             size,
-            MAX_IMAGE_BYTES - self.start as usize,
+            usize::try_from(capacity - self.start).unwrap_or(usize::MAX),
         )?;
         self.end = end;
-        Ok((offset, end))
+        Ok((offset, end, crc))
     }
     fn value(&mut self, value: &Value) -> Result<u64> {
         if let Some(offset) = value.offset_in(self.cache.source_id) {
@@ -892,6 +929,7 @@ impl<'a> Cursor<'a> {
     }
 }
 struct Object {
+    payload_len: usize,
     deferred_blob: bool,
     digest: u64,
     payload: ChargedVec<u8>,
@@ -899,8 +937,10 @@ struct Object {
     end: u64,
 }
 struct Reader<'a> {
-    packed: bool,
+    packed: FileFormat,
     page_cache: packed::PageCache,
+    extents: extents::Offsets<u64>,
+    blobs: extents::Offsets<(packed::blob::Blob, u64, u64)>,
     defer_blobs: bool,
     graph: Option<Shared<Graph>>,
     shapes: ChargedVec<Shape>,
@@ -1013,7 +1053,7 @@ impl Reader<'_> {
         }
         let first_region = (offset / REGION as u64) as usize;
         let end_region = (end / REGION as u64) as usize;
-        if self.objects >= MAX_OBJECTS
+        if self.objects >= MAX_OBJECTS && !self.packed.extended()
             || (!self.regions.is_empty()
                 && self
                     .regions
@@ -1024,17 +1064,22 @@ impl Reader<'_> {
         {
             return Err(Error::Corrupt);
         }
+        let work_limit =
+            usize::try_from(self.packed.capacity().saturating_mul(2)).unwrap_or(usize::MAX);
         self.work = self
             .work
             .checked_add(size as usize + OBJECT_HEADER)
-            .filter(|n| *n <= 2 * MAX_IMAGE_BYTES)
+            .filter(|n| *n <= work_limit)
             .ok_or(Error::Limit)?;
+        if self.packed.extended() {
+            self.extents.check_free(offset, end)?;
+        }
         let mut bytes = std::mem::replace(&mut self.scratch, ChargedVec::new());
         bytes.clear();
         // Only a witnessed, read-only view may defer a multi-region byte value.
         // Validate its declared extent and type/length prefix now. All structural
         // objects and single-region values take the complete verification path.
-        let mut deferred_blob = false;
+        let mut deferred_blob = self.defer_blobs && kind == packed::blob::BLOB;
         if self.defer_blobs && kind == VALUE && size > REGION as u64 && payload_len >= 16 {
             let mut prefix = [0; 16];
             read_all(self.backend, offset + OBJECT_HEADER as u64, &mut prefix)?;
@@ -1063,16 +1108,21 @@ impl Reader<'_> {
         // Allocate lazily at the former range-registration boundary, after the
         // full object validates. Malformed first headers still fail before any
         // index allocation. Every accepted region is marked exactly once.
-        if self.regions.is_empty() {
-            self.mem.reserve(&mut self.regions, self.region_count)?;
-            self.regions.resize(self.region_count, 0);
+        if self.packed.extended() {
+            self.extents.insert(self.mem, offset, end)?;
+        } else {
+            if self.regions.is_empty() {
+                self.mem.reserve(&mut self.regions, self.region_count)?;
+                self.regions.resize(self.region_count, 0);
+            }
+            self.regions
+                .get_mut(first_region..end_region)
+                .ok_or(Error::Corrupt)?
+                .fill(1);
         }
-        self.regions
-            .get_mut(first_region..end_region)
-            .ok_or(Error::Corrupt)?
-            .fill(1);
         self.objects += 1;
         Ok(Object {
+            payload_len,
             deferred_blob,
             digest: u64_at(&header, 48),
             payload: bytes,
@@ -1244,7 +1294,7 @@ impl Reader<'_> {
             }
             previous_id = id;
             let records_count = cursor.count(self.mem.limits().max_entries)?;
-            if self.packed {
+            if self.packed != FileFormat::V2 {
                 let c =
                     self.packed_collection(&mut cursor, offset, content_revision, records_count)?;
                 collections = collections.set(self.mem, &id.to_le_bytes(), c)?;
@@ -1329,7 +1379,7 @@ impl Reader<'_> {
     }
 }
 pub(crate) struct Recovered {
-    pub packed: bool,
+    pub packed: FileFormat,
     pub identity: [u8; 16],
     pub slot: Slot,
     pub witnessed: bool,
@@ -1368,13 +1418,15 @@ fn recover_mode(
 pub(super) struct ImageHeader {
     length: u64,
     identity: [u8; 16],
-    pub(super) packed: bool,
+    pub(super) packed: FileFormat,
 }
 pub(super) fn read_header(backend: &mut dyn ByteStore) -> Result<ImageHeader> {
     diagnostics::clear_verification();
     let length = diagnostics::verify(Stage::ImageLength, None, || {
         let length = backend.length()?;
-        if length < APPEND_START as u64 || length > MAX_IMAGE_BYTES as u64 {
+        if length < APPEND_START as u64
+            || length > FileFormat::Extended(super::FileCapacity::Unbounded).capacity()
+        {
             return Err(Error::Corrupt);
         }
         Ok(length)
@@ -1382,15 +1434,26 @@ pub(super) fn read_header(backend: &mut dyn ByteStore) -> Result<ImageHeader> {
     let (identity, packed) = diagnostics::verify(Stage::Header, Some(0), || {
         let mut header = [0; REGION];
         read_all(backend, 0, &mut header)?;
-        if &header[..8] != b"WEEKDB01" || !matches!(u32_at(&header, 8), VERSION | PACKED_VERSION) {
+        if &header[..8] != b"WEEKDB01"
+            || !matches!(
+                u32_at(&header, 8),
+                VERSION | PACKED_VERSION | EXTENDED_VERSION
+            )
+        {
             return Err(Error::UnsupportedFormat);
         }
-        if checksum(&header, 64) != u64_at(&header, 64)
+        let format = FileFormat::from_header(u32_at(&header, 8), u64_at(&header, 48))?;
+        if length > format.capacity()
+            || checksum(&header, 64) != u64_at(&header, 64)
             || u32_at(&header, 12) != 0
             || u64_at(&header, 16) != REGION as u64
             || u64_at(&header, 24) != APPEND_START as u64
-            || u64_at(&header, 48) != MAX_IMAGE_BYTES as u64
-            || u64_at(&header, 56) != MAX_OBJECTS as u64
+            || u64_at(&header, 56)
+                != if format.extended() {
+                    0
+                } else {
+                    MAX_OBJECTS as u64
+                }
             || header[72..].iter().any(|b| *b != 0)
         {
             return Err(Error::Corrupt);
@@ -1399,7 +1462,7 @@ pub(super) fn read_header(backend: &mut dyn ByteStore) -> Result<ImageHeader> {
         if identity == [0; 16] {
             return Err(Error::Corrupt);
         }
-        Ok((identity, u32_at(&header, 8) == PACKED_VERSION))
+        Ok((identity, format))
     })?;
     Ok(ImageHeader {
         length,
@@ -1453,10 +1516,14 @@ pub(super) fn recover_after_header(
         Ok(slot)
     })?;
     diagnostics::verify(Stage::CommitDescriptor, Some(slot.descriptor), || {
-        let graph = source.map(|s| mem.shared(Graph::new(s))).transpose()?;
+        let graph = source
+            .map(|s| mem.shared(Graph::new(s.with_format(packed))))
+            .transpose()?;
         let mut reader = Reader {
             packed,
             page_cache: packed::PageCache::new(),
+            extents: extents::Offsets::new(),
+            blobs: extents::Offsets::new(),
             defer_blobs: defer_blobs && witnesses[slot.index] == Some(slot),
             graph: graph.clone(),
             shapes: ChargedVec::new(),
@@ -3080,7 +3147,10 @@ mod tests {
                 unreachable!()
             }
         }
-        for length in [APPEND_START as u64 - 1, MAX_IMAGE_BYTES as u64 + 1] {
+        for length in [
+            APPEND_START as u64 - 1,
+            FileFormat::Extended(super::super::FileCapacity::Unbounded).capacity() + 1,
+        ] {
             assert!(
                 matches!(
                     Database::open_on(Length(length), Limits::default()),
@@ -3110,7 +3180,7 @@ mod tests {
         ] {
             let mut image = original.clone();
             if offset == 8 {
-                put32(&mut image, 8, PACKED_VERSION + 1);
+                put32(&mut image, 8, EXTENDED_VERSION + 1);
             } else if offset == 32 {
                 image[32..48].fill(0);
             } else {
@@ -3883,7 +3953,7 @@ mod tests {
         resign(&mut image, root, size, 48);
         assert_eq!(rejected(&image), Error::Corrupt);
         let mut image = original.clone();
-        put32(&mut image, 8, PACKED_VERSION + 1);
+        put32(&mut image, 8, EXTENDED_VERSION + 1);
         resign(&mut image, 0, REGION, 64);
         assert_eq!(rejected(&image), Error::UnsupportedFormat);
         let mut image = original.clone();

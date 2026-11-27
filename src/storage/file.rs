@@ -500,6 +500,27 @@ fn compact_file_with_hook_on(
     compact_file_impl(path, &Memory::with_allocator(limits, allocator)?, observer)
 }
 fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<CompactionStats> {
+    replace_file_impl(path, mem, observer, None)
+}
+/// Atomically install a verified image of the selected format at the same name.
+pub fn migrate_file(
+    path: impl AsRef<Path>,
+    format: super::FileFormat,
+    limits: Limits,
+) -> Result<CompactionStats> {
+    replace_file_impl(
+        path.as_ref(),
+        &Memory::new(limits)?,
+        Observer::default(),
+        Some(format),
+    )
+}
+fn replace_file_impl(
+    path: &Path,
+    mem: &Memory,
+    observer: Observer,
+    format: Option<super::FileFormat>,
+) -> Result<CompactionStats> {
     let original = Location::new(path)?;
     let source = original.duplicate()?.open_mode(false, true)?;
     let old_file = duplicate_file(&source.file)?;
@@ -507,19 +528,21 @@ fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<Co
     if file_metadata(&old_file)?.nlink() != 1 {
         return Err(Error::Invalid);
     }
-    let (mut storage, head, next_collection, retention) = Storage::open(
-        Observed {
-            file: source,
-            observer: observer.clone(),
-            target: false,
-        },
-        mem,
-    )?;
+    let source = Observed {
+        file: source,
+        observer: observer.clone(),
+        target: false,
+    };
+    let (mut storage, head, next_collection, retention) = if format.is_some() {
+        Storage::open_paged(source, mem)?
+    } else {
+        Storage::open(source, mem)?
+    };
     storage.release_serialization_caches();
     let scratch = original.scratch(identity)?;
     let target = scratch.duplicate()?.open_mode(true, true)?;
     let new_file = duplicate_file(&target.file)?;
-    let prepared = storage.encode_compact_copy(
+    let prepared = storage.encode_copy_as(
         Observed {
             file: target,
             observer: observer.clone(),
@@ -529,6 +552,7 @@ fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<Co
         &head,
         next_collection,
         &retention,
+        format.unwrap_or(storage.format),
     );
     // The source backend still owns the lease while verification walks the
     // newly serialized graph. The offline copy no longer needs the old graph.
