@@ -371,24 +371,6 @@ impl Database {
         };
         Ok((db, storage.packed.take()))
     }
-    #[cfg(all(test, feature = "replication"))]
-    pub(crate) fn decode_replica(
-        backend: &mut dyn ByteStore,
-        identity: [u8; 16],
-        revision: u64,
-        length: u64,
-        limits: Limits,
-    ) -> Result<Self> {
-        let mut db = Self::with_limits(limits)?;
-        let recovered =
-            crate::storage::recover_replica(backend, &db.mem, identity, revision, length)?;
-        *db.state.get_mut().unwrap() = State {
-            head: recovered.head,
-            next_collection: recovered.next_collection,
-            retention: recovered.retention,
-        };
-        Ok(db)
-    }
     /// Offline compaction: close every database handle for this file first.
     /// Both old and replacement inodes remain locked through durable exchange.
     #[cfg(any(target_os = "macos", target_os = "linux"))]

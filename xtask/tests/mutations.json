@@ -812,8 +812,8 @@
     {
       "name": "r1-codec-align-overflow",
       "file": "src/storage/codec.rs",
-      "old": ".ok_or(Error::Limit)?;\n    if value > MAX_IMAGE_BYTES as u64",
-      "new": ".unwrap_or(0);\n    if value > MAX_IMAGE_BYTES as u64",
+      "old": ".ok_or(Error::Limit)?;\n    if value > capacity",
+      "new": ".unwrap_or(0);\n    if value > capacity",
       "test": "storage::codec::tests::alignment_and_cursor_boundaries_preserve_failed_take_position",
       "target": "--lib",
       "occurrence": 1,
@@ -823,8 +823,8 @@
     {
       "name": "r1-codec-align-cap",
       "file": "src/storage/codec.rs",
-      "old": "if value > MAX_IMAGE_BYTES as u64",
-      "new": "if value >= MAX_IMAGE_BYTES as u64",
+      "old": "if value > capacity",
+      "new": "if value >= capacity",
       "test": "storage::codec::tests::alignment_and_cursor_boundaries_preserve_failed_take_position",
       "target": "--lib",
       "occurrence": 1,
@@ -934,7 +934,7 @@
     {
       "name": "r1-metadata-length-max",
       "file": "src/storage/codec.rs",
-      "old": "length > MAX_IMAGE_BYTES as u64",
+      "old": "length > FileFormat::Extended(super::FileCapacity::Unbounded).capacity()",
       "new": "false",
       "test": "storage::codec::tests::recovery_checks_image_length_before_reading_metadata",
       "target": "--lib",
@@ -956,7 +956,7 @@
     {
       "name": "r1-metadata-header-version",
       "file": "src/storage/codec.rs",
-      "old": "!matches!(u32_at(&header, 8), VERSION | PACKED_VERSION)",
+      "old": "!matches!(\n                u32_at(&header, 8),\n                VERSION | PACKED_VERSION | EXTENDED_VERSION\n            )",
       "new": "false",
       "test": "storage::codec::tests::recovery_rejects_each_invalid_header_field_before_reading_slots",
       "target": "--lib",
@@ -1011,7 +1011,7 @@
     {
       "name": "r1-metadata-header-cap",
       "file": "src/storage/codec.rs",
-      "old": "u64_at(&header, 48) != MAX_IMAGE_BYTES as u64",
+      "old": "u64_at(&header, 48) != format.capacity()",
       "new": "false",
       "test": "storage::codec::tests::recovery_rejects_each_invalid_header_field_before_reading_slots",
       "target": "--lib",
@@ -1022,7 +1022,7 @@
     {
       "name": "r1-metadata-header-objects",
       "file": "src/storage/codec.rs",
-      "old": "u64_at(&header, 56) != MAX_OBJECTS as u64",
+      "old": "u64_at(&header, 56)\n                != if format.extended() {\n                    0\n                } else {\n                    MAX_OBJECTS as u64\n                }",
       "new": "false",
       "test": "storage::codec::tests::recovery_rejects_each_invalid_header_field_before_reading_slots",
       "target": "--lib",
@@ -2821,8 +2821,8 @@
     {
       "name": "r1-encoder-object-end-equality",
       "file": "src/storage/codec.rs",
-      "old": ".filter(|n| *n <= MAX_IMAGE_BYTES as u64)",
-      "new": ".filter(|n| *n < MAX_IMAGE_BYTES as u64)",
+      "old": ".filter(|n| *n <= capacity)",
+      "new": ".filter(|n| *n < capacity)",
       "test": "storage::codec::tests::writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic",
       "target": "--lib",
       "occurrence": 1,
@@ -2832,8 +2832,8 @@
     {
       "name": "r1-encoder-object-append",
       "file": "src/storage/codec.rs",
-      "old": "MAX_IMAGE_BYTES - self.start as usize,\n        )?;",
-      "new": "MAX_IMAGE_BYTES - self.start as usize,\n        ).or(Ok::<(), Error>(()))?;",
+      "old": "usize::try_from(capacity - self.start).unwrap_or(usize::MAX),\n        )?;",
+      "new": "usize::try_from(capacity - self.start).unwrap_or(usize::MAX),\n        ).or(Ok::<(), Error>(()))?;",
       "test": "storage::codec::tests::writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic",
       "target": "--lib",
       "occurrence": 1,
@@ -6107,8 +6107,8 @@
     {
       "name": "r1-bytestore-persist-short-length",
       "file": "src/storage/mod.rs",
-      "old": "if length < self.end || length > MAX_IMAGE_BYTES as u64 {",
-      "new": "if length > MAX_IMAGE_BYTES as u64 {",
+      "old": "if length < self.end || length > self.format.capacity() {",
+      "new": "if length > self.format.capacity() {",
       "test": "storage_decisions",
       "target": "--test",
       "occurrence": 1,
@@ -6119,7 +6119,7 @@
     {
       "name": "r1-bytestore-persist-long-length",
       "file": "src/storage/mod.rs",
-      "old": "if length < self.end || length > MAX_IMAGE_BYTES as u64 {",
+      "old": "if length < self.end || length > self.format.capacity() {",
       "new": "if length < self.end {",
       "test": "storage_decisions",
       "target": "--test",
@@ -6455,8 +6455,8 @@
     {
       "name": "r1-storage-admission-create-prepare-first",
       "file": "src/storage/mod.rs",
-      "old": "let candidate = if packed {",
-      "new": "write_all(&mut *storage.backend, 0, &codec::file_header(identity,packed))?;\n        let candidate = if packed {",
+      "old": "let candidate = if packed != FileFormat::V2 {",
+      "new": "write_all(&mut *storage.backend, 0, &codec::file_header(identity,packed))?;\n        let candidate = if packed != FileFormat::V2 {",
       "test": "durability",
       "target": "--test",
       "occurrence": 1,
@@ -6680,8 +6680,8 @@
     {
       "name": "r1-compact-copy-space-lower",
       "file": "src/storage/mod.rs",
-      "old": "if physical_bytes < self.end || physical_bytes > MAX_IMAGE_BYTES as u64 {",
-      "new": "if false || physical_bytes > MAX_IMAGE_BYTES as u64 {",
+      "old": "if physical_bytes < self.end || physical_bytes > self.format.capacity() {",
+      "new": "if false || physical_bytes > self.format.capacity() {",
       "test": "storage_decisions",
       "target": "--test",
       "occurrence": 1,
@@ -6692,7 +6692,7 @@
     {
       "name": "r1-compact-copy-space-upper",
       "file": "src/storage/mod.rs",
-      "old": "if physical_bytes < self.end || physical_bytes > MAX_IMAGE_BYTES as u64 {",
+      "old": "if physical_bytes < self.end || physical_bytes > self.format.capacity() {",
       "new": "if physical_bytes < self.end || false {",
       "test": "storage_decisions",
       "target": "--test",
@@ -6704,8 +6704,8 @@
     {
       "name": "r1-compact-copy-space-poison",
       "file": "src/storage/mod.rs",
-      "old": "if physical_bytes < self.end || physical_bytes > MAX_IMAGE_BYTES as u64 {\n            self.poisoned = true;",
-      "new": "if physical_bytes < self.end || physical_bytes > MAX_IMAGE_BYTES as u64 {",
+      "old": "if physical_bytes < self.end || physical_bytes > self.format.capacity() {\n            self.poisoned = true;",
+      "new": "if physical_bytes < self.end || physical_bytes > self.format.capacity() {",
       "test": "headroom",
       "target": "--test",
       "occurrence": 1,
@@ -6740,8 +6740,8 @@
     {
       "name": "r1-compact-copy-source-lower",
       "file": "src/storage/mod.rs",
-      "old": "if before_bytes < self.end || before_bytes > MAX_IMAGE_BYTES as u64 {",
-      "new": "if false || before_bytes > MAX_IMAGE_BYTES as u64 {",
+      "old": "if before_bytes < self.end || before_bytes > self.format.capacity() {",
+      "new": "if false || before_bytes > self.format.capacity() {",
       "test": "storage_decisions",
       "target": "--test",
       "occurrence": 1,
@@ -6752,7 +6752,7 @@
     {
       "name": "r1-compact-copy-source-upper",
       "file": "src/storage/mod.rs",
-      "old": "if before_bytes < self.end || before_bytes > MAX_IMAGE_BYTES as u64 {",
+      "old": "if before_bytes < self.end || before_bytes > self.format.capacity() {",
       "new": "if before_bytes < self.end || false {",
       "test": "storage_decisions",
       "target": "--test",
@@ -6764,8 +6764,8 @@
     {
       "name": "r1-compact-copy-destination",
       "file": "src/storage/mod.rs",
-      "old": "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n            self.packed.is_some(),\n        )?",
-      "new": "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n            self.packed.is_some(),\n        ).map_err(|_| Error::Invalid)?",
+      "old": "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n            format,\n        )?",
+      "new": "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n            format,\n        ).map_err(|_| Error::Invalid)?",
       "test": "compaction",
       "target": "--test",
       "occurrence": 1,
@@ -6926,8 +6926,8 @@
     {
       "name": "r1-native-replace-source-open",
       "file": "src/storage/file.rs",
-      "old": "Storage::open(\n        Observed {\n            file: source,\n            observer: observer.clone(),\n            target: false,\n        },\n        mem,\n    )?",
-      "new": "Storage::open(\n        Observed {\n            file: source,\n            observer: observer.clone(),\n            target: false,\n        },\n        mem,\n    ).map_err(|_| Error::Invalid)?",
+      "old": "Storage::open(source, mem)?",
+      "new": "Storage::open(source, mem).map_err(|_| Error::Invalid)?",
       "test": "compaction",
       "target": "--test",
       "occurrence": 1,
@@ -7185,8 +7185,8 @@
       "new": "self.check().map_err(|_| Error::Invalid)?",
       "test": "storage::file::decision_tests::all_io_requires_a_claim_and_failed_reacquisition_releases_the_inode",
       "target": "--lib",
-      "occurrence": 1,
-      "matches": 4,
+      "occurrence": 2,
+      "matches": 5,
       "package": "weekend-db"
     },
     {
@@ -7196,8 +7196,8 @@
       "new": "self.check().map_err(|_| Error::Invalid)?",
       "test": "storage::file::decision_tests::all_io_requires_a_claim_and_failed_reacquisition_releases_the_inode",
       "target": "--lib",
-      "occurrence": 2,
-      "matches": 4,
+      "occurrence": 3,
+      "matches": 5,
       "package": "weekend-db"
     },
     {
@@ -7207,8 +7207,8 @@
       "new": "self.check().map_err(|_| Error::Invalid)?",
       "test": "storage::file::decision_tests::all_io_requires_a_claim_and_failed_reacquisition_releases_the_inode",
       "target": "--lib",
-      "occurrence": 3,
-      "matches": 4,
+      "occurrence": 4,
+      "matches": 5,
       "package": "weekend-db"
     },
     {
@@ -7218,8 +7218,8 @@
       "new": "self.check().map_err(|_| Error::Invalid)?",
       "test": "storage::file::decision_tests::all_io_requires_a_claim_and_failed_reacquisition_releases_the_inode",
       "target": "--lib",
-      "occurrence": 4,
-      "matches": 4,
+      "occurrence": 5,
+      "matches": 5,
       "package": "weekend-db"
     },
     {
@@ -11666,7 +11666,7 @@
     {
       "name": "r1-snapshot-ack-follower-image-sync",
       "file": "src/replication/follower.rs",
-      "old": "image.0.sync()?;",
+      "old": "image.image_bytes().sync()?;",
       "new": "",
       "test": "replication::follower::tests::interrupted_image_and_manifest_barriers_recover_exactly_one_image",
       "target": "--lib",
@@ -11963,8 +11963,8 @@
     {
       "name": "r1-snapshot-capture-reopen-verify",
       "file": "src/replication/mod.rs",
-      "old": "recover_replica(\n            backend,\n            &mem,\n            self.enrollment.file_identity,\n            offer.revision,\n            offer.length,\n        )?;",
-      "new": "let _ = recover_replica(\n            backend,\n            &mem,\n            self.enrollment.file_identity,\n            offer.revision,\n            offer.length,\n        );",
+      "old": "let (storage, _) = storage.verified_replica(\n            &mem,\n            self.enrollment.file_identity,\n            offer.revision,\n            offer.length,\n        )?;",
+      "new": "",
       "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
       "target": "--lib",
       "occurrence": 1,
@@ -12117,7 +12117,7 @@
     {
       "name": "r1-snapshot-sender-offer-length",
       "file": "src/replication/mod.rs",
-      "old": "!(APPEND_START as u64..=MAX_IMAGE_BYTES as u64).contains(&self.length)",
+      "old": "!(APPEND_START as u64..=MAX_TRANSFER_BYTES).contains(&self.length)",
       "new": "false",
       "test": "replication::tests::enrollment_offer_and_wire_dispatch_boundaries",
       "target": "--lib",
@@ -13362,8 +13362,8 @@
     {
       "name": "r1-replica-decode-recovery",
       "file": "src/engine.rs",
-      "old": "crate::storage::recover_replica(backend, &db.mem, identity, revision, length)?",
-      "new": "crate::storage::recover_replica(backend, &db.mem, identity, revision, length).map_err(|_| Error::Invalid)?",
+      "old": "storage.verified_replica(&db.mem, identity, revision, length)?",
+      "new": "storage.verified_replica(&db.mem, identity, revision, length).map_err(|_| Error::Invalid)?",
       "test": "replication::follower::tests::replica_decode_preserves_the_first_error_and_both_roots",
       "target": "--lib",
       "occurrence": 1,
@@ -14339,8 +14339,8 @@
     {
       "name": "r1-inspection-current-destination-create",
       "file": "src/storage/inspection.rs",
-      "old": "Storage::create_format(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n            packed,\n        )?",
-      "new": "Storage::create_format(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n            packed,\n        ).map_err(|_| crate::Error::Io)?",
+      "old": "Storage::create_format(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n            format,\n        )?",
+      "new": "Storage::create_format(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n            format,\n        ).map_err(|_| crate::Error::Io)?",
       "package": "weekend-db",
       "matches": 1,
       "occurrence": 1,
@@ -15073,8 +15073,8 @@
     {
       "name": "r1-recover-replica-identity",
       "file": "src/storage/mod.rs",
-      "old": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
-      "new": "if false\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
+      "old": "if recovered.identity != identity\n            || recovered.slot.revision != revision\n            || recovered.slot.end != length\n            || !recovered.witnessed",
+      "new": "if false\n            || recovered.slot.revision != revision\n            || recovered.slot.end != length\n            || !recovered.witnessed",
       "package": "weekend-db",
       "target": "--lib",
       "test": "storage::decision_tests::verification_envelope_predicates_have_independent_controls",
@@ -15084,8 +15084,8 @@
     {
       "name": "r1-recover-replica-revision",
       "file": "src/storage/mod.rs",
-      "old": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
-      "new": "if recovered.identity != identity\n        || false\n        || recovered.slot.end != length\n        || !recovered.witnessed",
+      "old": "if recovered.identity != identity\n            || recovered.slot.revision != revision\n            || recovered.slot.end != length\n            || !recovered.witnessed",
+      "new": "if recovered.identity != identity\n            || false\n            || recovered.slot.end != length\n            || !recovered.witnessed",
       "package": "weekend-db",
       "target": "--lib",
       "test": "storage::decision_tests::verification_envelope_predicates_have_independent_controls",
@@ -15095,8 +15095,8 @@
     {
       "name": "r1-recover-replica-length",
       "file": "src/storage/mod.rs",
-      "old": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
-      "new": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || false\n        || !recovered.witnessed",
+      "old": "if recovered.identity != identity\n            || recovered.slot.revision != revision\n            || recovered.slot.end != length\n            || !recovered.witnessed",
+      "new": "if recovered.identity != identity\n            || recovered.slot.revision != revision\n            || false\n            || !recovered.witnessed",
       "package": "weekend-db",
       "target": "--lib",
       "test": "storage::decision_tests::verification_envelope_predicates_have_independent_controls",
@@ -15106,8 +15106,8 @@
     {
       "name": "r1-recover-replica-witness",
       "file": "src/storage/mod.rs",
-      "old": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
-      "new": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || false",
+      "old": "if recovered.identity != identity\n            || recovered.slot.revision != revision\n            || recovered.slot.end != length\n            || !recovered.witnessed",
+      "new": "if recovered.identity != identity\n            || recovered.slot.revision != revision\n            || recovered.slot.end != length\n            || false",
       "package": "weekend-db",
       "target": "--lib",
       "test": "storage::decision_tests::verification_envelope_predicates_have_independent_controls",
@@ -15117,8 +15117,8 @@
     {
       "name": "r1-recover-replica-decode",
       "file": "src/storage/mod.rs",
-      "old": "let recovered = codec::recover(backend, mem)?;",
-      "new": "let recovered = codec::recover(backend, mem).map_err(|_| Error::Invalid)?;",
+      "old": "let (storage, recovered, _) = self.read_locked(mem, None)?;",
+      "new": "let (storage, recovered, _) = self.read_locked(mem, None).map_err(|_| Error::Invalid)?;",
       "package": "weekend-db",
       "target": "--lib",
       "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
@@ -24592,6 +24592,100 @@
       "matches": 1,
       "package": "weekend-db",
       "exact_test": "one_replacement_appends_only_the_path_in_a_multibranch_directory"
+    },
+    {
+      "name": "r1-capacity-extent-left",
+      "file": "src/storage/codec/extents.rs",
+      "old": "prev.is_some_and(|p| p.1 > start)",
+      "new": "false",
+      "test": "storage::codec::extents::tests::split_blocks_reject_overlaps_from_both_neighbors",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-capacity-extent-right",
+      "file": "src/storage/codec/extents.rs",
+      "old": "next.is_some_and(|n| end > n.0)",
+      "new": "false",
+      "test": "storage::codec::extents::tests::split_blocks_reject_overlaps_from_both_neighbors",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-capacity-blob-len",
+      "file": "src/storage/codec/packed/blob.rs",
+      "old": "obj.payload_len != len",
+      "new": "false",
+      "test": "storage_capacity",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "resealed_blob_descriptors_reject_bad_bounds_digest_length_and_revision"
+    },
+    {
+      "name": "r1-capacity-blob-digest",
+      "file": "src/storage/codec/packed/blob.rs",
+      "old": "obj.digest != blob.digest",
+      "new": "false",
+      "test": "storage_capacity",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "resealed_blob_descriptors_reject_bad_bounds_digest_length_and_revision"
+    },
+    {
+      "name": "r1-capacity-blob-born-zero",
+      "file": "src/storage/codec/packed/blob.rs",
+      "old": "obj.born == 0",
+      "new": "false",
+      "test": "storage_capacity",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "resealed_blob_descriptors_reject_bad_bounds_digest_length_and_revision"
+    },
+    {
+      "name": "r1-capacity-blob-newer",
+      "file": "src/storage/codec/packed/blob.rs",
+      "old": "obj.born > row_revision",
+      "new": "false",
+      "test": "storage_capacity",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "resealed_blob_descriptors_reject_bad_bounds_digest_length_and_revision"
+    },
+    {
+      "name": "r1-capacity-blob-point-check",
+      "file": "src/storage/codec/packed/blob.rs",
+      "old": "checksum(&bytes, 48) != self.digest",
+      "new": "false",
+      "test": "storage_capacity",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "blob_corruption_surfaces_on_affected_read_and_full_check"
+    },
+    {
+      "name": "r1-capacity-relocate-source",
+      "file": "src/storage/codec/packed/write.rs",
+      "old": "self.source = source;",
+      "new": "",
+      "test": "storage_capacity",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "shared_pages_are_relocated_once_across_catalogs"
     }
   ]
 }

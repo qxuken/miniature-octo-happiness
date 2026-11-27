@@ -1462,12 +1462,15 @@ pub(super) fn read_header(backend: &mut dyn ByteStore) -> Result<ImageHeader> {
         {
             return Err(Error::UnsupportedFormat);
         }
-        let format = FileFormat::from_header(u32_at(&header, 8), u64_at(&header, 48))?;
-        if length > format.capacity()
-            || checksum(&header, 64) != u64_at(&header, 64)
+        let format = FileFormat::from_supported_header(u32_at(&header, 8), u64_at(&header, 48))?;
+        if length > format.capacity() {
+            return Err(Error::Corrupt);
+        }
+        if checksum(&header, 64) != u64_at(&header, 64)
             || u32_at(&header, 12) != 0
             || u64_at(&header, 16) != REGION as u64
             || u64_at(&header, 24) != APPEND_START as u64
+            || u64_at(&header, 48) != format.capacity()
             || u64_at(&header, 56)
                 != if format.extended() {
                     0

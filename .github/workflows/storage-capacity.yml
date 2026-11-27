@@ -19,6 +19,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install 1.100.0 --profile minimal
+      - name: Prepare a bounded ext4 volume for ENOSPC and retry
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/capacity-quota"
+          truncate -s 32M "$RUNNER_TEMP/capacity.ext4"
+          mkfs.ext4 -q -F "$RUNNER_TEMP/capacity.ext4"
+          sudo mount -o loop "$RUNNER_TEMP/capacity.ext4" "$RUNNER_TEMP/capacity-quota"
+          sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/capacity-quota"
+          echo "WDB_MIGRATION_QUOTA_VOLUME=$RUNNER_TEMP/capacity-quota" >> "$GITHUB_ENV"
       - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test packed_directory --test storage_capacity
       - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test packed_directory -- --ignored --nocapture
       - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test storage_capacity -- --ignored --nocapture --test-threads=1
+      - name: Release the quota volume
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          if mountpoint -q "$RUNNER_TEMP/capacity-quota"; then sudo umount "$RUNNER_TEMP/capacity-quota"; fi

@@ -234,10 +234,14 @@ fn replica_decode_preserves_the_first_error_and_both_roots() {
         ),
         (defaults, Error::Io, true),
     ] {
-        let mut image = Lease::new(selected.clone()).unwrap();
+        let image = crate::storage::Storage::locked(
+            selected.clone(),
+            &crate::memory::Memory::new(defaults).unwrap(),
+        )
+        .unwrap();
         selected.arm(0, Fault::Error);
-        let result = Database::decode_replica(
-            &mut image.0,
+        let result = Database::replica_from_storage(
+            image,
             fixture.enrollment.file_identity,
             ack.revision,
             before.len() as u64,

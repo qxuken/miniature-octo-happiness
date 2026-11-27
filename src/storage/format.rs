@@ -38,8 +38,9 @@ impl FileFormat {
     pub(crate) fn extended(self) -> bool {
         matches!(self, Self::Extended(_))
     }
-    pub(crate) fn from_header(version: u32, cap: u64) -> Result<Self> {
-        let format = match version {
+    pub(crate) fn from_supported_header(version: u32, cap: u64) -> Result<Self> {
+        // The reader checks the supported version before interpreting its fields.
+        Ok(match version {
             2 => Self::V2,
             3 => Self::Packed,
             4 => Self::Extended(match cap {
@@ -51,11 +52,7 @@ impl FileFormat {
                 }
                 _ => return Err(Error::Corrupt),
             }),
-            _ => return Err(Error::UnsupportedFormat),
-        };
-        if cap != format.capacity() {
-            return Err(Error::Corrupt);
-        }
-        Ok(format)
+            _ => return Err(Error::Corrupt),
+        })
     }
 }

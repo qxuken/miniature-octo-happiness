@@ -235,6 +235,17 @@ file_factory_with_options!(
     create_file_with_options,
     with_packed_pages
 );
+export!(wdb_file_create_with_capacity(bytes:*const u8,len:usize,capacity:u64, options:*const CDatabaseOptions,out:*mut *mut CDatabase) {
+    output(out)?;
+    #[cfg(any(target_os="macos",target_os="linux",windows))]
+    {
+        use crate::storage::FileCapacity;
+        let cap=match capacity {0=>FileCapacity::Unbounded,67_108_864=>FileCapacity::MiB64,268_435_456=>FileCapacity::MiB256,1_073_741_824=>FileCapacity::GiB1,_=>return Err(Error::Invalid)};
+        let db=Database::create_file_with_options(path(bytes,len)?,database_options(options)?.with_file_capacity(cap))?;
+        *out=into_database_handle(db)?;Ok(())
+    }
+    #[cfg(not(any(target_os="macos",target_os="linux",windows)))] {let _=(bytes,len,capacity,options);Err(Error::UnsupportedPlatform)}
+});
 file_factory_with_options!(wdb_file_open_with_options, open_file_with_options);
 file_factory_with_options!(
     wdb_file_open_paged,

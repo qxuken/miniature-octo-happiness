@@ -204,6 +204,11 @@ static void verify_file_allocator_contract(void) {
         assert(actual_size == image_size && memcmp(actual, image, image_size) == 0);
         free(actual);
     }
+    assert(wdb_file_create_with_capacity((const uint8_t *)trial, strlen(trial), 99, NULL, &db) == WDB_INVALID && db == NULL);
+    assert(wdb_file_create_with_capacity((const uint8_t *)trial, strlen(trial), UINT64_C(268435456), NULL, &db) == WDB_OK);
+    assert(wdb_close(db) == WDB_OK);
+    assert(wdb_file_open((const uint8_t *)trial, strlen(trial), &db) == WDB_OK);
+    assert(wdb_close(db) == WDB_OK && remove(trial) == 0);
     assert(wdb_file_create_packed((const uint8_t *)trial, strlen(trial), NULL, &db) == WDB_OK);
     assert(wdb_collection_create(db, &collection) == WDB_OK);
     assert(store_file_row(db, collection, 42) == 2);

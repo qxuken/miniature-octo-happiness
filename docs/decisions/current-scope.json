@@ -50,7 +50,7 @@
     "examples/typed.rs": "2cf1f8d30a277ecad9cca3fbee5e20170d94c7fcd9a85264d2f787c8deb9ab37",
     "fuzz/examples/crdt_seeds.rs": "45533b55f81d0c9f7b355c19946ba33b11df54576c1cd2b5de625d94444ff807",
     "fuzz/examples/operations_seeds.rs": "7990c5f26f154faab8996b7ca0623d83172a862ff03eeb1aa1749918ceeb0932",
-    "fuzz/examples/seed_corpus.rs": "0686b80393c1ab3cf6fe37de3627719663f3dc52fc9d08d915db09141dc4fb42",
+    "fuzz/examples/seed_corpus.rs": "c69ee07de0f0f87008693a1c7f5380775eb97950db66c7f1d2926918886ed83b",
     "fuzz/examples/snapshot_seeds.rs": "4c08993ec89843cc8234d8d042f2fcdfa7108e4bb9ebf4b4ddd63b57e7456e68",
     "fuzz/fuzz_targets/backup_restore.rs": "9fe3e5c75410743a4b5762391ded754b86529fde41fad174b10fc95304161a98",
     "fuzz/fuzz_targets/bytestore_contract.rs": "2655cb3d7de6090e9f486685e2beaa47d226aaf9bd3cbdce1154ca1831b1d6c5",
@@ -81,8 +81,8 @@
     "fuzz/src/derive.rs": "09da8b335c76ab3ef393ce8f64a31480e0ad0f4dbe6f492b685593731532e448",
     "fuzz/src/foreign.rs": "f905795854b2abf39ed250b5931a879bd4b6afbdada9498188a4cd96fad648f9",
     "fuzz/src/history.rs": "e0dd4f80613e9d92a5245d0349055ac64f76aae50af0e8f846ae530365459732",
-    "fuzz/src/image.rs": "9770c956ae674397fd73e9441be5909d5d9b51f4d9b58e92241ebf4b4ce8c7dc",
-    "fuzz/src/lib.rs": "661905d7799dfffa0899054d0b2358a9fa5d0b6acb7afb8441898bccbc11b302",
+    "fuzz/src/image.rs": "63de519f564af89680e12d47201bc4696b1002f7ef8a5147f5a97146890f3884",
+    "fuzz/src/lib.rs": "a94667d125c5f8371dd12932b9a0891514ae94be77d10086fbbb34c70632554e",
     "fuzz/src/namespace.rs": "4b6255be88ad490dcdbf0d37bcac5f7220d7027348419b863add6675b9ca1568",
     "fuzz/src/operations.rs": "699520bfb6c1d8e9d34548176618b8aeefef3d5957e7eac187a793876265cc71",
     "fuzz/src/peer.rs": "8313a8b86ae207c8aa404266bef1ec115c06655b9f620a701788a9d6b2c13259",
@@ -96,27 +96,30 @@
     "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
     "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
-    "src/engine.rs": "254d1717c1a90cb1628a4c95248ff60efe1c07c051998c1af575c8496d4b1bfe",
+    "src/engine.rs": "6b210bf183955ebbe9830f93d2c64b28d907768faa6e403e111d32c89ccccfbf",
     "src/engine/pages.rs": "fb244de69466308809d999e3784aa4fc99b828630d20239a1b64c8ea61879075",
     "src/engine/read_only.rs": "3254062258184907f40cbfb040fdc19080563fd3fbae7dd5348f775b89229aea",
-    "src/ffi.rs": "f9ea03c2e6b7163b07b57c8042be01d7bee7830c8e9c68cb61bd1d65672d6a77",
+    "src/ffi.rs": "a8680cce90105fc1a65906ecc2d36a45d469064b1beb1aa2f1285798817ede0f",
     "src/lib.rs": "a0fe73f74af38d68a90bddb23670e3fc0e41c48d4fe0cec9a6611fb02fd5fc0c",
     "src/memory.rs": "9cdbed77d31d5fa82baaac45ea46a5111a30d106901b0e48be1f2bf86d1f0d49",
-    "src/replication/follower.rs": "7b1566228ed57f5b41d15be8a583416a14f8dcefae1521a5ba1764413e37e035",
-    "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
+    "src/replication/follower.rs": "f93767dcc42bd4ada2a27800fdb2e9149f10610b488c7f94e769448de84cd20a",
+    "src/replication/mod.rs": "1b6449768d611118ff1cf482e1a97bd784cee543a9726b75e3b5469c2272d132",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
     "src/schema.rs": "66bb396906513bf771b53627bbfeccc9da8a719bb3667df996677398f17170b8",
-    "src/storage/codec.rs": "74e1b4ec2a6501f062ad07fe793fc70ac88177aa0b7878cfbd3abc09358def8d",
-    "src/storage/codec/packed.rs": "f20a28f703f3c80e41853df61488331cad99a3978716ea0ce739d7e288fa6a11",
-    "src/storage/codec/packed/write.rs": "65bf42c06fee692698f93244190cd90384ea01d1a44adf5bab42a4a05c00cb5c",
-    "src/storage/codec/paging.rs": "5f21f13106738053800d9b68f69c1e93197eb82a06738ddaae0644a4309b9df7",
+    "src/storage/codec.rs": "8b0797b055d162c2783b61698eeaa494b05de107a1570eae45e20384eb3350a2",
+    "src/storage/codec/extents.rs": "7077d41d1d67d6d27413697880a2b53055c882fae5a51b4c18970d617112ec66",
+    "src/storage/codec/packed.rs": "7558e281dfeebf4c295026c492121581d87a4694ad2157c0b7aa326861436c37",
+    "src/storage/codec/packed/blob.rs": "49de2ce0511b37c621334c39f794a20ae7e4467b3c72dbea70ce8c5c3b7c0427",
+    "src/storage/codec/packed/write.rs": "8f0db1df69ad1c285870ee00c3e86d232fc769663f46f23e1569d6aafd75c971",
+    "src/storage/codec/paging.rs": "1b99bca1e9b2d76ea0b744d83d796c522dce80d55b4f220366a37e8344299b19",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
-    "src/storage/file.rs": "ce7dca17ba6afabdaec10275ff42d84020132132e3166fc465acb54df6723f44",
-    "src/storage/inspection.rs": "1a515177309b7e090ab0bd07af655b41e9769b21942455145d31c748e223fa8e",
+    "src/storage/file.rs": "469f8da798a15c3aae372e490ce81a5c3f11116c9759a023091c70c8f8dc1d19",
+    "src/storage/format.rs": "01f06acfd02fb04c211e76572a8cc4e69574e704d167b499df9b9e2302dcc8df",
+    "src/storage/inspection.rs": "26bb931059f0a6a548571ba91e3074c5042d0c41a69dd9a6ee29e232d2fcd2de",
     "src/storage/linux.rs": "512931ec540b580a4cf83706878f73aeae4358e74fefd1e0b15fd74a3fcf0220",
     "src/storage/logical.rs": "3b30da8197a145a7e372bf608847e281f725ab98d974d5407d40b1f5b8ee4780",
     "src/storage/macos.rs": "da5c860e2e339f78e53b9d63e993c96c89aeee62f40e22c4c06c15952c6700e2",
-    "src/storage/mod.rs": "e8206bc63064a47003febb839f84a55db4abe43a9c9e11fe70de2a121412393b",
+    "src/storage/mod.rs": "ab51b96d7a9306fc22a47561dc61dd7201eff18d84fb201cdced51efb4627ea4",
     "src/storage/replacement.rs": "758de2d4ff064a05b11d046097206602d2f2504f9748d2d0e99ec3693b12ebdf",
     "src/storage/salvage.rs": "3492fa11bebcafd5d720be77fb9f10d17bc66c3666ad92686ece4121eabcaec7",
     "src/storage/simulator.rs": "f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50",
@@ -131,7 +134,7 @@
     "src/version.rs": "5006fbd7ced8252c579cb6695cd0ecbf1c6ab15491a7fc43f8a999539cb2fcf3",
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
     "tests/support/mod.rs": "007e7da58df3c8818418cb4460436e7b15e18026a32b5b0b742ebc78c89a7ab4",
-    "tools/admin.rs": "5bf45aecb59283e8d3f5c3192fcc01fdf0abe983219402f2b7daba31a40611fb",
+    "tools/admin.rs": "9a672ce55fc90ea50950241a69d438b4590c20ffd81b99cc1dfc75864dcb505c",
     "tools/atomic-model/src/budget.rs": "ff9048fb065807c67190b52729e26c79980425c7eadd67b4354fa8befe58b6dc",
     "tools/atomic-model/src/ffi.rs": "c65d6a3a4c3e851d4e7feb4896ae430b4669310d14fe0dea55c50a6c3eab0192",
     "tools/atomic-model/src/main.rs": "c1f7d1dbc214e94b68c0b32b8953dded87711d13c42b1346e9fc100a903e1ad2",
@@ -442,15 +445,15 @@
     "docs/tls-handshake-decisions.md": "8642a290a1922b2056270d750e6cbb32a54f966e54807f865f71b48757825a78",
     "examples/memory.c": "b259fda793fcda3db83989f49e9b04e8017a2eaad87eaae32f2322b909fa6af4",
     "examples/support/allocator_contract.h": "b86da5ca90ca078d9c9cca8f6c8425b33150477534af65c31cb8029bec070fc9",
-    "examples/support/file_allocator_contract.h": "c9035868eac34eafaca1763065a8ab35bccbf5d0bc25389c2e9201aa0ed4e8d1",
-    "include/weekend_db.h": "32c8b8dfed59e5b927d000f0d6215ab028f0386c5466211ad3c31a08071a8707",
+    "examples/support/file_allocator_contract.h": "9f563d3093cce291e5522153208035da494e001c57b54bf5c0805d92e7d3a242",
+    "include/weekend_db.h": "0398a7c04dd861bc17e1f03cb7e1809f4c7ee20003f8f4a23ff832ca9007d97f",
     "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
     "src/memory/test_allocator.rs": "82ae341c680760f0d6980cf367e4c247f8cdd756635de7a399eb820d78924029",
-    "src/replication/follower/tests.rs": "5e8afbd69178077862bee3d44a1560fa462d58d8f256d4e0340686a1febf3492",
-    "src/replication/tests.rs": "4752d275a9781684266d0da0db6985a3416c73ab83e0096f9f2e2161c5143235",
-    "src/storage/file.rs": "ce7dca17ba6afabdaec10275ff42d84020132132e3166fc465acb54df6723f44",
+    "src/replication/follower/tests.rs": "0eef7bcc07757e539a9c58c16daf2419a4040692c3cc6de961d64a35d154c11c",
+    "src/replication/tests.rs": "cf186681bf818dab246b21c0085c64ad609a161dd36445605df8b64f8d2a5a71",
+    "src/storage/file.rs": "469f8da798a15c3aae372e490ce81a5c3f11116c9759a023091c70c8f8dc1d19",
     "src/storage/logical/decisions.rs": "b3bd8042e68a4f4e56455998d19d579d39d87529b63303d36768ff9f15959bf8",
-    "src/storage/mod.rs": "e8206bc63064a47003febb839f84a55db4abe43a9c9e11fe70de2a121412393b",
+    "src/storage/mod.rs": "ab51b96d7a9306fc22a47561dc61dd7201eff18d84fb201cdced51efb4627ea4",
     "tests/admin_decisions.rs": "52d6edddba79b65e4861177c10c1c6743b50d73c9c6c07ab29d5a4b54dc1b6e1",
     "tests/allocation.rs": "b2546afd7e746c8fefc5d12f0df66d27f84d2a9eaca19fb50a8286fe255dbc31",
     "tests/allocator_routing.rs": "eb9f78809734a6684708ddc06a9cf47f2589a3fa06006465758a30c44bc47f06",
@@ -466,13 +469,14 @@
     "tests/linux_architecture.rs": "45f6c0859c890fe3540f3f322f0d1d5d41aff762eb116066fe07ec0143a36e2e",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
     "tests/logical.rs": "ef4f3a09a7d51234e588f17f6d995904d681d5ba5ccae07f7a11e76ba7304c9e",
-    "tests/packed_directory.rs": "86469e7236c6a15f10cf36488c3689c9be0dc076253a4912e521ce5cc2bb6659",
+    "tests/packed_directory.rs": "48f48f04cc7b51eff72c4ce5932087b946a973b33eacb188a2f94c4b7e56a567",
     "tests/paging.rs": "cd86dd3e65ebf41e60b92c29869e8e8b9dfc501892eb5880c9951c775c9299e2",
     "tests/replication.rs": "91cc5dc9e1e33f05657e58105c6f3ee4d15ba043dedc381350c04ae8a99a4dcc",
     "tests/retention.rs": "19c377d14d73e0cf58502f13374a1bd837d280b352daf52a70c62af98f3fd14d",
     "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
     "tests/schema.rs": "1c560b21d176392a589dd217972438f2064556c02c0d367e40fccca9ab819e50",
     "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
+    "tests/storage_capacity.rs": "887e0870ac069da55a8cb1f8f7ccfab26fa5a94bbb6cce9eed5cb426f468d8e3",
     "tests/storage_decisions.rs": "415cd1e0d799ad189d8c7797a80effcee04374d90fd077f59901779c5cec04b4",
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
     "tests/support/bytestore_contract.rs": "bf48ba939e043e05e30b6f8d0fb52eac5aa3c947126be1181512477fa7bd4d78",
@@ -493,7 +497,7 @@
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
     "xtask/tests/mutations-windows.json": "6a2eb401d709f79bed86b435797a054729fedd60da8b6dffc0f9ce918de35862",
-    "xtask/tests/mutations.json": "8704033745999baf0d7e263eb7093f737188cc36d8a64bd9f327ee041bee33d6",
+    "xtask/tests/mutations.json": "53bca5b41d80c07dfba1d71ef228d81649a3ddd9919ba3ab608ad7a58ceefeca",
     "xtask/tests/supervise.rs": "c246ea1294e470f8a32271209c961da00c116bbf8c6ad3811154a0d00e2067d8"
   },
   "target_records": {
@@ -524,14 +528,14 @@
     "weekend-db-fuzz::replacement_namespace": 0,
     "weekend-db-fuzz::retention_compact_crash": 0,
     "weekend-db-fuzz::schema_index_migration": 0,
-    "weekend-db-fuzz::seed_corpus": 22,
+    "weekend-db-fuzz::seed_corpus": 25,
     "weekend-db-fuzz::snapshot_frames": 0,
     "weekend-db-fuzz::snapshot_install_schedule": 0,
     "weekend-db-fuzz::snapshot_seeds": 12,
     "weekend-db-fuzz::tree_adversarial_keys": 0,
     "weekend-db-fuzz::txn_schedule": 0,
     "weekend-db-fuzz::value_ops": 0,
-    "weekend-db-fuzz::weekend_db_fuzz": 577,
+    "weekend-db-fuzz::weekend_db_fuzz": 581,
     "weekend-db-macros::weekend_db_macros": 108,
     "weekend-db-typed::weekend_db_typed": 320,
     "weekend-db::benchmark": 93,
@@ -547,8 +551,8 @@
     "weekend-db::storage_lifecycle": 37,
     "weekend-db::study_progress": 31,
     "weekend-db::typed": 186,
-    "weekend-db::weekend-admin": 30,
-    "weekend-db::weekend_db": 2160,
+    "weekend-db::weekend-admin": 37,
+    "weekend-db::weekend_db": 2291,
     "weekend-decision-inventory::weekend-decision-inventory": 413,
     "weekend-native-soak::weekend-native-soak": 17,
     "weekend-probe::weekend_probe": 46,
@@ -694,7 +698,8 @@
       "name": "storage",
       "scope": "runtime",
       "paths": [
-        "src/storage/mod.rs"
+        "src/storage/mod.rs",
+        "src/storage/format.rs"
       ],
       "references": [
         "docs/decisions/current.md",
@@ -1601,10 +1606,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "align",
+        "owner": "align_to",
         "kind": "if",
         "conditions": [
-          "value > MAX_IMAGE_BYTES as u64"
+          "value > capacity"
         ]
       },
       "table": [
@@ -1725,7 +1730,7 @@
         "kind": "if",
         "conditions": [
           "length < APPEND_START as u64",
-          "length > MAX_IMAGE_BYTES as u64"
+          "length > FileFormat::Extended(super::FileCapacity::Unbounded).capacity()"
         ]
       },
       "tests": [
@@ -1772,7 +1777,7 @@
         "kind": "if",
         "conditions": [
           "&header[..8] != b\"WEEKDB01\"",
-          "!matches!(u32_at(&header, 8), VERSION | PACKED_VERSION)"
+          "!matches!(\n                u32_at(&header, 8),\n                VERSION | PACKED_VERSION | EXTENDED_VERSION\n            )"
         ]
       },
       "tests": [
@@ -1822,8 +1827,8 @@
           "u32_at(&header, 12) != 0",
           "u64_at(&header, 16) != REGION as u64",
           "u64_at(&header, 24) != APPEND_START as u64",
-          "u64_at(&header, 48) != MAX_IMAGE_BYTES as u64",
-          "u64_at(&header, 56) != MAX_OBJECTS as u64",
+          "u64_at(&header, 48) != format.capacity()",
+          "u64_at(&header, 56)\n                != if format.extended() {\n                    0\n                } else {\n                    MAX_OBJECTS as u64\n                }",
           "header[72..].iter().any(|b| *b != 0)"
         ]
       },
@@ -2924,7 +2929,7 @@
         "owner": "read_header",
         "kind": "try_propagation",
         "conditions": [
-          "diagnostics::verify(Stage::ImageLength, None, || {\n        let length = backend.length()?;\n        if length < APPEND_START as u64 || length > MAX_IMAGE_BYTES as u64 {\n            return Err(Error::Corrupt);\n        }\n        Ok(length)\n    })"
+          "diagnostics::verify(Stage::ImageLength, None, || {\n        let length = backend.length()?;\n        if length < APPEND_START as u64\n            || length > FileFormat::Extended(super::FileCapacity::Unbounded).capacity()\n        {\n            return Err(Error::Corrupt);\n        }\n        Ok(length)\n    })"
         ]
       },
       "tests": [
@@ -2968,7 +2973,7 @@
         "owner": "read_header",
         "kind": "try_propagation",
         "conditions": [
-          "diagnostics::verify(Stage::Header, Some(0), || {\n        let mut header = [0; REGION];\n        read_all(backend, 0, &mut header)?;\n        if &header[..8] != b\"WEEKDB01\" || !matches!(u32_at(&header, 8), VERSION | PACKED_VERSION) {\n            return Err(Error::UnsupportedFormat);\n        }\n        if checksum(&header, 64) != u64_at(&header, 64)\n            || u32_at(&header, 12) != 0\n            || u64_at(&header, 16) != REGION as u64\n            || u64_at(&header, 24) != APPEND_START as u64\n            || u64_at(&header, 48) != MAX_IMAGE_BYTES as u64\n            || u64_at(&header, 56) != MAX_OBJECTS as u64\n            || header[72..].iter().any(|b| *b != 0)\n        {\n            return Err(Error::Corrupt);\n        }\n        let identity: [u8; 16] = header[32..48].try_into().unwrap();\n        if identity == [0; 16] {\n            return Err(Error::Corrupt);\n        }\n        Ok((identity, u32_at(&header, 8) == PACKED_VERSION))\n    })"
+          "diagnostics::verify(Stage::Header, Some(0), || {\n        let mut header = [0; REGION];\n        read_all(backend, 0, &mut header)?;\n        if &header[..8] != b\"WEEKDB01\"\n            || !matches!(\n                u32_at(&header, 8),\n                VERSION | PACKED_VERSION | EXTENDED_VERSION\n            )\n        {\n            return Err(Error::UnsupportedFormat);\n        }\n        let format = FileFormat::from_supported_header(u32_at(&header, 8), u64_at(&header, 48))?;\n        if length > format.capacity() {\n            return Err(Error::Corrupt);\n        }\n        if checksum(&header, 64) != u64_at(&header, 64)\n            || u32_at(&header, 12) != 0\n            || u64_at(&header, 16) != REGION as u64\n            || u64_at(&header, 24) != APPEND_START as u64\n            || u64_at(&header, 48) != format.capacity()\n            || u64_at(&header, 56)\n                != if format.extended() {\n                    0\n                } else {\n                    MAX_OBJECTS as u64\n                }\n            || header[72..].iter().any(|b| *b != 0)\n        {\n            return Err(Error::Corrupt);\n        }\n        let identity: [u8; 16] = header[32..48].try_into().unwrap();\n        if identity == [0; 16] {\n            return Err(Error::Corrupt);\n        }\n        Ok((identity, format))\n    })"
         ]
       },
       "tests": [
@@ -4521,7 +4526,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "object_born",
+        "owner": "object_with_crc",
         "kind": "try_propagation",
         "conditions": [
           "align(length as u64)"
@@ -4543,10 +4548,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "object_born",
+        "owner": "object_with_crc",
         "kind": "try_propagation",
         "conditions": [
-          "offset\n            .checked_add(size as u64)\n            .filter(|n| *n <= MAX_IMAGE_BYTES as u64)\n            .ok_or(Error::Limit)"
+          "offset\n            .checked_add(size as u64)\n            .filter(|n| *n <= capacity)\n            .ok_or(Error::Limit)"
         ]
       },
       "tests": [
@@ -4565,10 +4570,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "object_born",
+        "owner": "object_with_crc",
         "kind": "try_propagation",
         "conditions": [
-          "self.bytes.object(\n            self.mem,\n            [&header, payload, padding],\n            size,\n            MAX_IMAGE_BYTES - self.start as usize,\n        )"
+          "self.bytes.object(\n            self.mem,\n            [&header, payload, padding],\n            size,\n            usize::try_from(capacity - self.start).unwrap_or(usize::MAX),\n        )"
         ]
       },
       "tests": [
@@ -4917,7 +4922,7 @@
         "conditions": [
           "payload.int(offset)"
         ],
-        "start_byte": 21131
+        "start_byte": 22280
       },
       "tests": [
         {
@@ -4984,7 +4989,7 @@
         "conditions": [
           "payload.int(offset)"
         ],
-        "start_byte": 21394
+        "start_byte": 22543
       },
       "tests": [
         {
@@ -5387,7 +5392,7 @@
         "conditions": [
           "self.value(&r.value)"
         ],
-        "start_byte": 25016
+        "start_byte": 26165
       },
       "tests": [
         {
@@ -5410,7 +5415,7 @@
         "conditions": [
           "payload.key(key)"
         ],
-        "start_byte": 25051
+        "start_byte": 26200
       },
       "tests": [
         {
@@ -6123,7 +6128,7 @@
         "conditions": [
           "entries > MAX_OBJECTS"
         ],
-        "start_byte": 7838
+        "start_byte": 8030
       },
       "tests": [
         {
@@ -6276,7 +6281,7 @@
         "conditions": [
           "entries > MAX_OBJECTS"
         ],
-        "start_byte": 10135
+        "start_byte": 10327
       },
       "tests": [
         {
@@ -6429,7 +6434,7 @@
         "conditions": [
           "fork_vec(mem, &self.entries, MAX_OBJECTS)"
         ],
-        "start_byte": 11853
+        "start_byte": 12045
       },
       "tests": [
         {
@@ -6496,7 +6501,7 @@
         "conditions": [
           "fork_vec(mem, &self.entries, MAX_OBJECTS)"
         ],
-        "start_byte": 12614
+        "start_byte": 12806
       },
       "tests": [
         {
@@ -7320,7 +7325,7 @@
         "conditions": [
           "self.scan_owned(id)"
         ],
-        "start_byte": 31657
+        "start_byte": 32087
       },
       "tests": [
         {
@@ -10966,7 +10971,7 @@
         "kind": "if",
         "conditions": [
           "length < self.end",
-          "length > MAX_IMAGE_BYTES as u64"
+          "length > self.format.capacity()"
         ]
       },
       "tests": [
@@ -11834,7 +11839,7 @@
         "kind": "if",
         "conditions": [
           "physical_bytes < self.end",
-          "physical_bytes > MAX_IMAGE_BYTES as u64"
+          "physical_bytes > self.format.capacity()"
         ]
       },
       "tests": [
@@ -11882,7 +11887,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/mod.rs",
-        "owner": "encode_compact_copy",
+        "owner": "encode_copy_as",
         "kind": "try_propagation",
         "conditions": [
           "self.guard()"
@@ -11904,7 +11909,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/mod.rs",
-        "owner": "encode_compact_copy",
+        "owner": "encode_copy_as",
         "kind": "try_propagation",
         "conditions": [
           "self.backend.length()"
@@ -11926,11 +11931,11 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/mod.rs",
-        "owner": "encode_compact_copy",
+        "owner": "encode_copy_as",
         "kind": "if",
         "conditions": [
           "before_bytes < self.end",
-          "before_bytes > MAX_IMAGE_BYTES as u64"
+          "before_bytes > self.format.capacity()"
         ]
       },
       "tests": [
@@ -11973,10 +11978,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/mod.rs",
-        "owner": "encode_compact_copy",
+        "owner": "encode_copy_as",
         "kind": "try_propagation",
         "conditions": [
-          "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n            self.packed.is_some(),\n        )"
+          "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n            format,\n        )"
         ]
       },
       "tests": [
@@ -12158,7 +12163,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "Location::new(path)"
@@ -12180,7 +12185,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "original.duplicate()?.open_mode(false, true)"
@@ -12202,7 +12207,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "if",
         "conditions": [
           "file_metadata(&old_file)?.nlink() != 1"
@@ -12238,10 +12243,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
-          "Storage::open(\n        Observed {\n            file: source,\n            observer: observer.clone(),\n            target: false,\n        },\n        mem,\n    )"
+          "Storage::open(source, mem)"
         ]
       },
       "tests": [
@@ -12260,7 +12265,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "copy.verify(mem)"
@@ -12282,7 +12287,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "if",
         "conditions": [
           "e == Error::OutcomeUnknown"
@@ -12319,7 +12324,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "prepared\n        .and_then(|(mut copy, stats)| {\n            copy.verify(mem)?;\n            Ok((copy, stats))\n        })\n        .map_err(|e| {\n            if e == Error::OutcomeUnknown {\n                Error::Io\n            } else {\n                e\n            }\n        })"
@@ -12341,7 +12346,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "observer.call(CompactionStep::CopyMetadata, || {\n        sys::copy_metadata(&old_file, &new_file, mem)\n    })"
@@ -12363,7 +12368,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "observer.call(CompactionStep::SyncMetadata, || full_sync(&new_file))"
@@ -12385,7 +12390,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "replacement.verify(mem)"
@@ -12412,7 +12417,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "original.matches(&old_file)"
@@ -12434,7 +12439,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "observer.call(CompactionStep::CheckNames, || {\n        original.matches(&old_file)?;\n        scratch.matches(&new_file)\n    })"
@@ -12457,7 +12462,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "super::replacement::publish(|step| match step {\n        Step::Exchange => observer.call(CompactionStep::Exchange, || original.exchange(&scratch)),\n        Step::SyncDirectory => observer.call(CompactionStep::SyncDirectory, || original.sync()),\n        Step::SyncReplacement => {\n            observer.call(CompactionStep::SyncReplacement, || full_sync(&new_file))\n        }\n        Step::RemoveOld => observer.call(CompactionStep::RemoveOld, || scratch.remove()),\n        Step::SyncCleanupDirectory => {\n            observer.call(CompactionStep::SyncCleanupDirectory, || original.sync())\n        }\n        Step::SyncCleanupFile => {\n            observer.call(CompactionStep::SyncCleanupFile, || full_sync(&new_file))\n        }\n    })\n    .map_err(|_| Error::OutcomeUnknown)"
@@ -13380,7 +13385,7 @@
         "conditions": [
           "sync_file(&self.file)"
         ],
-        "start_byte": 5667
+        "start_byte": 5791
       },
       "tests": [
         {
@@ -13425,7 +13430,7 @@
         "conditions": [
           "sync_file(&self.file)"
         ],
-        "start_byte": 5778
+        "start_byte": 5902
       },
       "tests": [
         {
@@ -15503,7 +15508,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "original.duplicate()"
@@ -15525,7 +15530,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "original.scratch(identity)"
@@ -15547,7 +15552,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "scratch.duplicate()"
@@ -15569,7 +15574,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "scratch.duplicate()?.open_mode(true, true)"
@@ -15746,7 +15751,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "file_metadata(&old_file)"
@@ -15768,7 +15773,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "duplicate_file(&source.file)"
@@ -15791,7 +15796,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "compact_file_impl",
+        "owner": "replace_file_impl",
         "kind": "try_propagation",
         "conditions": [
           "duplicate_file(&target.file)"
@@ -17915,7 +17920,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "scan_iter",
         "kind": "try_propagation",
-        "start_byte": 37471,
+        "start_byte": 37901,
         "conditions": [
           "self.scan_owned(id)"
         ]
@@ -20946,7 +20951,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "handle",
         "kind": "if",
-        "start_byte": 6228,
+        "start_byte": 6462,
         "conditions": [
           "offer.revision < prior.offer.revision",
           "offer == prior.offer"
@@ -20994,7 +20999,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "handle",
         "kind": "if",
-        "start_byte": 6406,
+        "start_byte": 6640,
         "conditions": [
           "offer.revision == prior.offer.revision"
         ]
@@ -21031,7 +21036,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "handle",
         "kind": "try_propagation",
-        "start_byte": 6941,
+        "start_byte": 7294,
         "conditions": [
           "wire::reply(channel, Ok(wire::Reply::Ready))"
         ]
@@ -21054,9 +21059,9 @@
         "target": "weekend-db::weekend_db",
         "owner": "handle",
         "kind": "try_propagation",
-        "start_byte": 7330,
+        "start_byte": 7702,
         "conditions": [
-          "image.0.sync()"
+          "image.image_bytes().sync()"
         ]
       },
       "tests": [
@@ -21077,7 +21082,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "handle",
         "kind": "try_propagation",
-        "start_byte": 7485,
+        "start_byte": 7829,
         "conditions": [
           "self.select(Some(selected))"
         ]
@@ -21100,7 +21105,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "poll",
         "kind": "match_guard",
-        "start_byte": 10588,
+        "start_byte": 10663,
         "conditions": [
           "self.progress.is_none()"
         ]
@@ -21137,7 +21142,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "observe",
         "kind": "if",
-        "start_byte": 12721,
+        "start_byte": 12796,
         "conditions": [
           "ack.stream_id != self.enrollment.stream_id",
           "ack.revision > self.verified_revision"
@@ -21185,7 +21190,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "observe",
         "kind": "short_circuit_or",
-        "start_byte": 12924,
+        "start_byte": 12999,
         "conditions": [
           "prior.revision > ack.revision",
           "prior.revision == ack.revision",
@@ -21246,7 +21251,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "observe",
         "kind": "short_circuit_and",
-        "start_byte": 12958,
+        "start_byte": 13033,
         "conditions": [
           "prior.revision == ack.revision",
           "prior != ack"
@@ -21294,7 +21299,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "ship",
         "kind": "match_guard",
-        "start_byte": 11998,
+        "start_byte": 12073,
         "conditions": [
           "ack.revision > expected.revision",
           "ack == expected"
@@ -21342,7 +21347,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "ship",
         "kind": "match_guard",
-        "start_byte": 12474,
+        "start_byte": 12549,
         "conditions": [
           "ack == expected"
         ]
@@ -21379,7 +21384,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "reopen_export",
         "kind": "if",
-        "start_byte": 7041,
+        "start_byte": 7109,
         "conditions": [
           "descriptor.enrollment != self.enrollment",
           "descriptor.revision > self.verified_revision"
@@ -21427,7 +21432,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "reopen_export",
         "kind": "try_propagation",
-        "start_byte": 7262,
+        "start_byte": 7330,
         "conditions": [
           "offer.validate()"
         ]
@@ -21450,7 +21455,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "reopen_export",
         "kind": "try_propagation",
-        "start_byte": 7302,
+        "start_byte": 7370,
         "conditions": [
           "Memory::new(limits)"
         ]
@@ -21473,7 +21478,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "reopen_export",
         "kind": "try_propagation",
-        "start_byte": 7359,
+        "start_byte": 7427,
         "conditions": [
           "Storage::locked(image, &mem)"
         ]
@@ -21496,7 +21501,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "reopen_export",
         "kind": "if",
-        "start_byte": 7415,
+        "start_byte": 7483,
         "conditions": [
           "image_digest(backend, offer.length)? != offer.digest"
         ]
@@ -21533,7 +21538,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "reopen_export",
         "kind": "try_propagation",
-        "start_byte": 7453,
+        "start_byte": 7521,
         "conditions": [
           "image_digest(backend, offer.length)"
         ]
@@ -21556,9 +21561,9 @@
         "target": "weekend-db::weekend_db",
         "owner": "reopen_export",
         "kind": "try_propagation",
-        "start_byte": 7693,
+        "start_byte": 7768,
         "conditions": [
-          "recover_replica(\n            backend,\n            &mem,\n            self.enrollment.file_identity,\n            offer.revision,\n            offer.length,\n        )"
+          "storage.verified_replica(\n            &mem,\n            self.enrollment.file_identity,\n            offer.revision,\n            offer.length,\n        )"
         ]
       },
       "tests": [
@@ -21579,7 +21584,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "check_revision",
         "kind": "if",
-        "start_byte": 8558,
+        "start_byte": 8633,
         "conditions": [
           "identity != self.enrollment.file_identity",
           "revision < self.verified_revision"
@@ -21627,7 +21632,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "capture_live",
         "kind": "try_propagation",
-        "start_byte": 9251,
+        "start_byte": 9326,
         "conditions": [
           "Memory::new(limits)"
         ]
@@ -21650,7 +21655,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "capture_live",
         "kind": "try_propagation",
-        "start_byte": 9307,
+        "start_byte": 9382,
         "conditions": [
           "source.replication_snapshot(&mem)"
         ]
@@ -21673,7 +21678,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "capture_live",
         "kind": "try_propagation",
-        "start_byte": 9389,
+        "start_byte": 9464,
         "conditions": [
           "self.check_revision(state.identity, state.head.revision)"
         ]
@@ -21696,7 +21701,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "capture_live",
         "kind": "try_propagation",
-        "start_byte": 9453,
+        "start_byte": 9528,
         "conditions": [
           "destination()"
         ]
@@ -21719,7 +21724,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "capture_live",
         "kind": "try_propagation",
-        "start_byte": 9461,
+        "start_byte": 9536,
         "conditions": [
           "state.encode(destination()?, &mem)"
         ]
@@ -21742,7 +21747,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "capture_live",
         "kind": "try_propagation",
-        "start_byte": 9492,
+        "start_byte": 9567,
         "conditions": [
           "storage.verify(&mem)"
         ]
@@ -21765,7 +21770,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "finish_capture",
         "kind": "try_propagation",
-        "start_byte": 9761,
+        "start_byte": 9836,
         "conditions": [
           "image_digest(storage.image_bytes(), length)"
         ]
@@ -21788,7 +21793,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "ship",
         "kind": "if",
-        "start_byte": 11648,
+        "start_byte": 11723,
         "conditions": [
           "export.enrollment != self.enrollment",
           "offer.revision > self.verified_revision"
@@ -21836,7 +21841,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "visit_image",
         "kind": "if",
-        "start_byte": 13266,
+        "start_byte": 13341,
         "conditions": [
           "backend.length()? != length"
         ]
@@ -21873,7 +21878,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "visit_image",
         "kind": "try_propagation",
-        "start_byte": 13549,
+        "start_byte": 13624,
         "conditions": [
           "read_all(backend, offset, chunk)"
         ]
@@ -21896,7 +21901,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "visit_image",
         "kind": "try_propagation",
-        "start_byte": 13572,
+        "start_byte": 13647,
         "conditions": [
           "visit(chunk)"
         ]
@@ -21919,7 +21924,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "poll",
         "kind": "try_propagation",
-        "start_byte": 10478,
+        "start_byte": 10553,
         "conditions": [
           "wire::read_reply(&mut channel)"
         ]
@@ -21942,7 +21947,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "ship",
         "kind": "try_propagation",
-        "start_byte": 11951,
+        "start_byte": 12026,
         "conditions": [
           "wire::read_reply(&mut channel)"
         ]
@@ -21965,7 +21970,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "ship",
         "kind": "try_propagation",
-        "start_byte": 12419,
+        "start_byte": 12494,
         "conditions": [
           "wire::read_reply(&mut channel)"
         ]
@@ -21988,7 +21993,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "poll_live",
         "kind": "try_propagation",
-        "start_byte": 11115,
+        "start_byte": 11190,
         "conditions": [
           "self.check_source(source)"
         ]
@@ -22011,7 +22016,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "poll_live",
         "kind": "try_propagation",
-        "start_byte": 11208,
+        "start_byte": 11283,
         "conditions": [
           "self.poll(channel)"
         ]
@@ -22034,7 +22039,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "ship",
         "kind": "try_propagation",
-        "start_byte": 12307,
+        "start_byte": 12382,
         "conditions": [
           "visit_image(export.storage.image_bytes(), offer.length, |chunk| {\n                    channel.write_all(chunk).map_err(|_| Error::Io)\n                })"
         ]
@@ -22057,7 +22062,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "validate",
         "kind": "if",
-        "start_byte": 1240,
+        "start_byte": 1208,
         "conditions": [
           "self.stream_id == [0; 16]",
           "self.file_identity == [0; 16]"
@@ -22105,9 +22110,9 @@
         "target": "weekend-db::weekend_db",
         "owner": "validate",
         "kind": "if",
-        "start_byte": 2967,
+        "start_byte": 3039,
         "conditions": [
-          "!(APPEND_START as u64..=MAX_IMAGE_BYTES as u64).contains(&self.length)"
+          "!(APPEND_START as u64..=MAX_TRANSFER_BYTES).contains(&self.length)"
         ]
       },
       "tests": [
@@ -22142,7 +22147,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "observe",
         "kind": "if",
-        "start_byte": 12873,
+        "start_byte": 12948,
         "conditions": [
           "self.progress.is_some_and(|prior| {\n            prior.revision > ack.revision || (prior.revision == ack.revision && prior != ack)\n        })"
         ]
@@ -22179,7 +22184,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "visit_image",
         "kind": "try_propagation",
-        "start_byte": 13285,
+        "start_byte": 13360,
         "conditions": [
           "backend.length()"
         ]
@@ -22202,7 +22207,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "visit_image",
         "kind": "while",
-        "start_byte": 13403,
+        "start_byte": 13478,
         "conditions": [
           "offset < length"
         ]
@@ -22239,7 +22244,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "image_digest",
         "kind": "try_propagation",
-        "start_byte": 13839,
+        "start_byte": 13914,
         "conditions": [
           "visit_image(backend, length, |chunk| {\n        hash.update(chunk);\n        Ok(())\n    })"
         ]
@@ -22262,7 +22267,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "revision_gap",
         "kind": "try_propagation",
-        "start_byte": 2167,
+        "start_byte": 2135,
         "conditions": [
           "self.follower"
         ]
@@ -22285,7 +22290,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 4307,
+        "start_byte": 4375,
         "conditions": [
           "source.replication_head()"
         ]
@@ -22308,7 +22313,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 4438,
+        "start_byte": 4506,
         "conditions": [
           "enrollment.validate()"
         ]
@@ -22331,7 +22336,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "export_to",
         "kind": "try_propagation",
-        "start_byte": 4976,
+        "start_byte": 5044,
         "conditions": [
           "self.check_source(source)"
         ]
@@ -22354,7 +22359,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "export_file",
         "kind": "try_propagation",
-        "start_byte": 5450,
+        "start_byte": 5518,
         "conditions": [
           "self.check_source(source)"
         ]
@@ -22377,7 +22382,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "export_file",
         "kind": "try_propagation",
-        "start_byte": 5521,
+        "start_byte": 5589,
         "conditions": [
           "crate::storage::FileStore::create(path)"
         ]
@@ -22400,7 +22405,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "reopen_export_file",
         "kind": "try_propagation",
-        "start_byte": 8226,
+        "start_byte": 8301,
         "conditions": [
           "crate::storage::FileStore::open_read_only(path)"
         ]
@@ -22423,7 +22428,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "check_source",
         "kind": "try_propagation",
-        "start_byte": 8412,
+        "start_byte": 8487,
         "conditions": [
           "source.replication_head()"
         ]
@@ -22446,7 +22451,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "capture",
         "kind": "try_propagation",
-        "start_byte": 8949,
+        "start_byte": 9024,
         "conditions": [
           "source.compact_copy(destination)"
         ]
@@ -22469,7 +22474,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "finish_capture",
         "kind": "try_propagation",
-        "start_byte": 9889,
+        "start_byte": 9964,
         "conditions": [
           "offer.validate()"
         ]
@@ -24730,7 +24735,7 @@
       "selector": {
         "file": "src/engine.rs",
         "target": "weekend-db::weekend_db",
-        "owner": "decode_replica",
+        "owner": "replica_from_storage",
         "kind": "try_propagation",
         "conditions": [
           "Self::with_limits(limits)"
@@ -24752,10 +24757,10 @@
       "selector": {
         "file": "src/engine.rs",
         "target": "weekend-db::weekend_db",
-        "owner": "decode_replica",
+        "owner": "replica_from_storage",
         "kind": "try_propagation",
         "conditions": [
-          "crate::storage::recover_replica(backend, &db.mem, identity, revision, length)"
+          "storage.verified_replica(&db.mem, identity, revision, length)"
         ]
       },
       "tests": [
@@ -26697,7 +26702,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/inspection.rs",
-        "owner": "copy_verified",
+        "owner": "copy_verified_as",
         "kind": "try_propagation",
         "conditions": [
           "source.backend.length()"
@@ -26719,10 +26724,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/inspection.rs",
-        "owner": "copy_verified",
+        "owner": "copy_verified_as",
         "kind": "try_propagation",
         "conditions": [
-          "Storage::create_format(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n            packed,\n        )"
+          "Storage::create_format(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n            format,\n        )"
         ]
       },
       "tests": [
@@ -26741,7 +26746,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/inspection.rs",
-        "owner": "copy_verified",
+        "owner": "copy_verified_as",
         "kind": "try_propagation",
         "conditions": [
           "destination.verify(mem)"
@@ -26857,7 +26862,7 @@
         "conditions": [
           "command == \"compact\""
         ],
-        "start_byte": 2130
+        "start_byte": 4018
       },
       "tests": [
         {
@@ -27761,8 +27766,8 @@
         "file": "src/storage/mod.rs",
         "target": "weekend-db::weekend_db",
         "kind": "if",
-        "owner": "recover_replica",
-        "start_byte": 18846,
+        "owner": "verified_replica",
+        "start_byte": 13052,
         "conditions": [
           "recovered.identity != identity",
           "recovered.slot.revision != revision",
@@ -48090,6 +48095,128 @@
           "outcome": true
         }
       ]
+    },
+    {
+      "name": "CAPACITY-EXTENT-OVERLAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec/extents.rs",
+        "owner": "check_free",
+        "kind": "if",
+        "conditions": [
+          "prev.is_some_and(|p| p.1 > start)",
+          "next.is_some_and(|n| end > n.0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec/extents.rs",
+          "name": "split_blocks_reject_overlaps_from_both_neighbors"
+        }
+      ],
+      "mutations": [
+        "r1-capacity-extent-left",
+        "r1-capacity-extent-right"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CAPACITY-BLOB-DESCRIPTOR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec/packed/blob.rs",
+        "owner": "verify_blob",
+        "kind": "if",
+        "conditions": [
+          "obj.payload_len != len",
+          "obj.digest != blob.digest",
+          "obj.born == 0",
+          "obj.born > row_revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/storage_capacity.rs",
+          "name": "resealed_blob_descriptors_reject_bad_bounds_digest_length_and_revision"
+        }
+      ],
+      "mutations": [
+        "r1-capacity-blob-len",
+        "r1-capacity-blob-digest",
+        "r1-capacity-blob-born-zero",
+        "r1-capacity-blob-newer"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
     }
   ],
   "cargo_scope": {
@@ -48577,6 +48704,19 @@
         "reason": "integration test target; use --include-tests",
         "required_features": [],
         "target": "weekend-db::schema_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/storage_capacity.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "storage_capacity",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::storage_capacity",
         "workspace_manifest": "Cargo.toml"
       },
       {

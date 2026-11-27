@@ -420,6 +420,10 @@ fn migration_interrupted_at_each_replacement_barrier() {
         panic!("cut was not reached");
     }
     let dir = Dir::new();
+    #[cfg(target_os = "linux")]
+    if let Some(root) = std::env::var_os("WDB_MIGRATION_QUOTA_VOLUME") {
+        quota_migration(Path::new(&root));
+    }
     let seed = dir.path("seed");
     let (old, rev, id) = fixture(&seed);
     for step in [
@@ -509,4 +513,153 @@ fn shared_pages_are_relocated_once_across_catalogs() {
             .count(db.collection_id(1)),
         Ok(1152)
     );
+}
+
+#[test]
+fn resealed_blob_descriptors_reject_bad_bounds_digest_length_and_revision() {
+    use weekend_db::storage::SimulatedDisk;
+    fn seal(bytes: &mut [u8], field: usize) -> u64 {
+        bytes[field..field + 8].fill(0);
+        let mut crc = 0u64;
+        for &b in bytes.iter() {
+            crc ^= u64::from(b) << 56;
+            for _ in 0..8 {
+                crc = (crc << 1) ^ (0x42f0_e1eb_a9ea_3693 & 0u64.wrapping_sub(crc >> 63));
+            }
+        }
+        bytes[field..field + 8].copy_from_slice(&crc.to_le_bytes());
+        crc
+    }
+    let disk = SimulatedDisk::new().unwrap();
+    let db = Database::create_on_with_options(
+        disk.clone(),
+        [19; 16],
+        DatabaseOptions::from(limits()).with_file_capacity(FileCapacity::GiB1),
+    )
+    .unwrap();
+    db.create_collection().unwrap();
+    put(&db, 777, &[87; 8000]);
+    db.create_collection().unwrap(); // Head can be newer than the blob-bearing row.
+    drop(db);
+    let clean = disk.durable_image().unwrap();
+    let object = |kind: u32| {
+        clean
+            .as_chunks::<4096>()
+            .0
+            .iter()
+            .position(|p| &p[..8] == b"WDBOBJ01" && p[8..12] == kind.to_le_bytes())
+            .unwrap()
+            * 4096
+    };
+    let blob = object(6);
+    let leaf = object(4);
+    let desc = leaf + 64 + 4 + 4 + 8 + 4;
+    assert_eq!(clean[desc], 8);
+    let blob_size = (64 + 8000usize).next_multiple_of(4096);
+    for case in [
+        "forward",
+        "unaligned",
+        "threshold",
+        "extent length",
+        "digest",
+        "zero birth",
+        "future birth",
+    ] {
+        let mut image = clean.clone();
+        let (field, n) = match case {
+            "forward" => (1, leaf as u64),
+            "unaligned" => (1, blob as u64 + 1),
+            "threshold" => (9, 4032),
+            "extent length" => (9, 7999),
+            "digest" => (17, 99),
+            "zero birth" | "future birth" => {
+                let birth = if case == "zero birth" { 0u64 } else { 3 };
+                image[blob + 24..blob + 32].copy_from_slice(&birth.to_le_bytes());
+                (17, seal(&mut image[blob..blob + blob_size], 48))
+            }
+            _ => unreachable!(),
+        };
+        image[desc + field..desc + field + 8].copy_from_slice(&n.to_le_bytes());
+        seal(&mut image[leaf..leaf + 4096], 48);
+        let disk = SimulatedDisk::from_image(&image).unwrap();
+        assert_eq!(
+            ReadOnlyDatabase::open_on(disk, limits().into()).err(),
+            Some(Error::Corrupt),
+            "{case}"
+        );
+    }
+}
+
+#[path = "support/capacity_benchmark.rs"]
+mod capacity_benchmark;
+
+#[cfg(all(target_os = "linux", feature = "fault-injection"))]
+fn quota_migration(root: &Path) {
+    use std::io::Write;
+    let area = Dir(root.join(format!("wdb-space-{}", std::process::id())));
+    fs::create_dir(&area.0).unwrap();
+    let path = area.path("source");
+    let db = Database::create_file(&path, limits()).unwrap();
+    let c = db.create_collection().unwrap();
+    let bytes = vec![23; 1 << 20];
+    for k in 0..6u32 {
+        put(&db, k, &bytes);
+    }
+    let r = db.retain_snapshot(&db.snapshot()).unwrap();
+    put(&db, 3, b"new");
+    let rev = db.snapshot().revision();
+    drop(db);
+    let fill = area.path("reservation");
+    let mut f = fs::File::create_new(&fill).unwrap();
+    for i in 0..49 {
+        match f.write_all(&bytes).and_then(|_| f.sync_data()) {
+            Ok(()) => assert!(i < 48, "use a dedicated filesystem smaller than 48 MiB"),
+            Err(e) => {
+                assert_eq!(e.raw_os_error(), Some(28));
+                break;
+            }
+        }
+    }
+    let n = f.metadata().unwrap().len();
+    f.set_len(n.saturating_sub(512 << 10)).unwrap();
+    f.sync_all().unwrap();
+    drop(f);
+    let err = storage::with_native_diagnostics(|| {
+        storage::migrate_file(&path, FileFormat::Packed, limits())
+    })
+    .unwrap_err();
+    assert_eq!(err.native.unwrap().raw_os_error, Some(28));
+    fs::remove_file(fill).unwrap();
+    for format in [FileFormat::V2, FileFormat::Packed] {
+        if format == FileFormat::Packed {
+            storage::migrate_file(&path, format, limits()).unwrap();
+        }
+        let info = storage::inspect_file(&path, limits()).unwrap();
+        assert_eq!(
+            (info.format_version, info.revision),
+            (format.version(), rev)
+        );
+        let db = Database::open_file(&path, limits()).unwrap();
+        let c = db.collection_id(c.as_u64());
+        assert_eq!(
+            db.snapshot()
+                .get(c, &3u32.to_be_bytes())
+                .unwrap()
+                .unwrap()
+                .as_bytes()
+                .unwrap(),
+            b"new"
+        );
+        assert_eq!(
+            db.retained_snapshot(r)
+                .unwrap()
+                .get(c, &3u32.to_be_bytes())
+                .unwrap()
+                .unwrap()
+                .as_bytes()
+                .unwrap(),
+            bytes
+        );
+    }
+    println!("native migration ENOSPC, retained root and retry passed");
 }

@@ -33,22 +33,6 @@ trait Images {
         Ok(())
     }
 }
-#[cfg(test)]
-struct Lease<B: ByteStore>(B);
-#[cfg(test)]
-impl<B: ByteStore> Lease<B> {
-    fn new(mut store: B) -> Result<Self> {
-        store.lock()?;
-        Ok(Self(store))
-    }
-}
-#[cfg(test)]
-impl<B: ByteStore> Drop for Lease<B> {
-    fn drop(&mut self) {
-        self.0.unlock();
-    }
-}
-
 const MANIFEST_KEY: &[u8] = b"replica-v1";
 
 #[derive(Clone, Copy)]

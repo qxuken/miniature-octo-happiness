@@ -110,12 +110,17 @@ wdb_status wdb_file_open_with_options(const uint8_t *path, size_t len,
 /* Create a format-3 image with packed copy-on-write pages. NULL options select defaults. */
 wdb_status wdb_file_create_packed(const uint8_t *path, size_t len,
                                   const wdb_database_options *options, wdb_database **out);
+/* New format-4 file. Capacity in bytes: 64 MiB, 256 MiB, 1 GiB or
+ * zero for filesystem growth up to the signed offset ceiling.
+ * The live allocation limit in options is independent. */
+wdb_status wdb_file_create_with_capacity(const uint8_t *path, size_t len, uint64_t capacity,
+                                         const wdb_database_options *options, wdb_database **out);
 /* Strictly verify the image, then read records on demand. NULL options select defaults. */
 wdb_status wdb_file_open_paged(const uint8_t *path, size_t len,
                                        const wdb_database_options *options, wdb_database **out);
 /* Offline macOS/Linux compaction: close ALL database handles for this path first.
  * BUSY if an inode is leased; hard-link sources are rejected. Current/retained
- * roots, revisions and local IDs survive; file format remains v2. A verified,
+ * roots, revisions and local IDs survive; file format is preserved. A verified,
  * durable sibling copy is atomically exchanged before the original is removed.
  * Errors may leave .wdb-compact-*.tmp siblings: never auto-delete recovery copies.
  * OUTCOME_UNKNOWN from the exchange phase onward requires reopening the canonical

@@ -600,27 +600,6 @@ pub(crate) fn write_all(
     Ok(())
 }
 
-#[cfg(all(test, feature = "replication"))]
-pub(crate) fn recover_replica(
-    backend: &mut dyn ByteStore,
-    mem: &Memory,
-    identity: [u8; 16],
-    revision: u64,
-    length: u64,
-) -> Result<codec::Recovered> {
-    let recovered = codec::recover(backend, mem)?;
-    // A shipped image has completed all barriers. Keep verification read-only
-    // so it cannot modify an immutable installed image on restart.
-    if recovered.identity != identity
-        || recovered.slot.revision != revision
-        || recovered.slot.end != length
-        || !recovered.witnessed
-    {
-        return Err(Error::Corrupt);
-    }
-    Ok(recovered)
-}
-
 #[cfg(test)]
 mod transfer_tests {
     use super::*;
@@ -1120,13 +1099,11 @@ mod decision_tests {
             assert_eq!(storage.verify(&mem), expected, "{changed}");
             #[cfg(feature = "replication")]
             assert_eq!(
-                recover_replica(
-                    &mut *storage.backend,
-                    &mem,
-                    storage.identity,
-                    storage.revision,
-                    storage.end
-                )
+                {
+                    let (identity, revision, length) =
+                        (storage.identity, storage.revision, storage.end);
+                    storage.verified_replica(&mem, identity, revision, length)
+                }
                 .map(|_| ()),
                 expected,
                 "replica {changed}"
