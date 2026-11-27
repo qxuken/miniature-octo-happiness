@@ -65,3 +65,9 @@ cargo +1.100.0 test -p weekend-db --release --all-features --locked --test packe
 ```
 
 Native Windows runtime qualification, a v2-to-v3 migration, larger file offsets, and equivalent million-key coverage for distributed paths remain open.
+
+## Verification checkpoint
+
+At `a48cb71`, the macOS workspace passed 1,124 tests in each of debug and release. The million-key native test ran separately in release. The Docker Linux release run passed 302 tests including the million-key case, core unit tests and the allocation, compatibility, durability, paging and retention suites. C11 and C++17 consumers created and reopened a packed file using the macOS shared library. The Windows x64 MSVC cross-target check passed.
+
+The source inventory reconciled 11,281 decisions across 230 files. The tests detected all 19 changed or new mutation controls in both macOS profiles. Forcing every branch to rebuild broke the exact append assertion. Allowing repeated leaf key ranges admitted a resealed invalid branch and broke the recovery test.
