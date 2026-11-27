@@ -230,6 +230,11 @@ macro_rules! file_factory_with_options {
     }); };
 }
 file_factory_with_options!(wdb_file_create_with_options, create_file_with_options);
+file_factory_with_options!(
+    wdb_file_create_packed,
+    create_file_with_options,
+    with_packed_pages
+);
 file_factory_with_options!(wdb_file_open_with_options, open_file_with_options);
 file_factory_with_options!(
     wdb_file_open_paged,

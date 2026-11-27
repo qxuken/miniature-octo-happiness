@@ -90,6 +90,7 @@ foreign engine {
     wdb_file_open :: proc(path: [^]u8, len: c.size_t, out: ^Database) -> Status ---
     wdb_file_create_with_options :: proc(path: [^]u8, len: c.size_t, options: ^Database_Options, out: ^Database) -> Status ---
     wdb_file_open_with_options :: proc(path: [^]u8, len: c.size_t, options: ^Database_Options, out: ^Database) -> Status ---
+    wdb_file_create_packed :: proc(path: [^]u8, len: c.size_t, options: ^Database_Options, out: ^Database) -> Status ---
     wdb_file_open_paged :: proc(path: [^]u8, len: c.size_t, options: ^Database_Options, out: ^Database) -> Status ---
     wdb_file_compact :: proc(path: [^]u8, len: c.size_t, before: ^u64, after: ^u64) -> Status ---
     wdb_close :: proc(db: Database) -> Status ---

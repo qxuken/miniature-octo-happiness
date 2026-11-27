@@ -38,7 +38,7 @@ impl Source {
     pub(crate) fn id(&self) -> usize {
         self.2
     }
-    fn access<T>(&self, f: impl FnOnce(&mut dyn ByteStore) -> Result<T>) -> Result<T> {
+    pub(super) fn access<T>(&self, f: impl FnOnce(&mut dyn ByteStore) -> Result<T>) -> Result<T> {
         let mut lease = self.0.lock().map_err(|_| Error::RecoveryRequired)?;
         f(&mut *lease.backend)
     }
@@ -91,6 +91,9 @@ impl Graph {
     }
     pub(super) fn finish(&self, regions: ChargedVec<usize>, shapes: ChargedVec<Shape>) {
         assert!(self.index.set(Index { regions, shapes }).is_ok());
+    }
+    pub(super) fn source(&self) -> &Source {
+        &self.source
     }
     pub(crate) fn source_id(&self) -> usize {
         self.source.id()

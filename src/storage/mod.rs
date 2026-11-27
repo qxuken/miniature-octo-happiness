@@ -119,6 +119,8 @@ pub trait ByteStore: Send {
 }
 
 pub(crate) struct Storage {
+    pub(crate) packed: Option<codec::paging::Source>,
+    pub(crate) rebased: Option<Shared<Head>>,
     backend: Box<dyn ByteStore, crate::AllocatorHandle>,
     identity: [u8; 16],
     revision: u64,
@@ -126,6 +128,29 @@ pub(crate) struct Storage {
     data_cache: Option<Shared<DataCache>>,
     cache: Option<Shared<ValueCache>>,
     poisoned: bool,
+}
+// Transfers an already acquired physical lease into a shared page source.
+struct LockedStorage(Storage);
+impl ByteStore for LockedStorage {
+    fn read_window(&self) -> usize {
+        self.0.backend.read_window()
+    }
+    fn lock(&mut self) -> Result<()> {
+        Ok(())
+    }
+    fn unlock(&mut self) {}
+    fn length(&mut self) -> Result<u64> {
+        self.0.backend.length()
+    }
+    fn read(&mut self, o: u64, b: &mut [u8]) -> Result<usize> {
+        self.0.backend.read(o, b)
+    }
+    fn write(&mut self, o: u64, b: &[u8]) -> Result<usize> {
+        self.0.backend.write(o, b)
+    }
+    fn sync(&mut self) -> Result<()> {
+        self.0.backend.sync()
+    }
 }
 impl Drop for Storage {
     fn drop(&mut self) {
@@ -177,6 +202,7 @@ impl Storage {
             next_collection,
             self.identity,
             retention,
+            self.packed.is_some(),
         )?;
         let stats = CompactionStats {
             before_bytes,
@@ -191,20 +217,30 @@ impl Storage {
         next_collection: u64,
         identity: [u8; 16],
         retention: &Retention,
+        packed: bool,
     ) -> Result<(Self, u64)> {
         // Encode only the supplied graphs. Release the encoder caches before
         // independent verification builds its own graph.
-        let mut copy = Self::create(destination, mem, head, next_collection, identity, retention)?;
+        let mut copy = Self::create_format(
+            destination,
+            mem,
+            head,
+            next_collection,
+            identity,
+            retention,
+            packed,
+        )?;
         copy.release_serialization_caches();
         let bytes = copy.end;
         Ok((copy, bytes))
     }
     fn release_serialization_caches(&mut self) {
+        self.rebased = None;
         self.data_cache = None;
         self.cache = None;
     }
     pub(crate) fn verify(&mut self, mem: &Memory) -> Result<()> {
-        let verified = codec::recover(&mut *self.backend, mem)?;
+        let verified = codec::recover_with_pages(&mut *self.backend, mem, self.packed.clone())?;
         if verified.identity != self.identity
             || verified.slot.revision != self.revision
             || verified.slot.end != self.end
@@ -218,6 +254,8 @@ impl Storage {
         let mut backend: Box<dyn ByteStore, crate::AllocatorHandle> = mem.boxed(backend)?;
         backend.lock()?;
         Ok(Self {
+            packed: None,
+            rebased: None,
             backend,
             identity: [0; 16],
             revision: 0,
@@ -235,6 +273,29 @@ impl Storage {
         identity: [u8; 16],
         retention: &Retention,
     ) -> Result<Self> {
+        Self::create_format(
+            backend,
+            mem,
+            head,
+            next_collection,
+            identity,
+            retention,
+            false,
+        )
+    }
+    fn share(self, mem: &Memory) -> Result<(Self, codec::paging::Source)> {
+        let source = codec::paging::Source::acquire(LockedStorage(self), mem)?;
+        Ok((Self::locked(source.clone(), mem)?, source))
+    }
+    pub(crate) fn create_format<B: ByteStore + 'static>(
+        backend: B,
+        mem: &Memory,
+        head: &Head,
+        next_collection: u64,
+        identity: [u8; 16],
+        retention: &Retention,
+        packed: bool,
+    ) -> Result<Self> {
         let mut storage = Self::locked(backend, mem)?;
         if identity == [0; 16] {
             return Err(Error::Invalid);
@@ -244,8 +305,27 @@ impl Storage {
         }
         storage.identity = identity;
         // Prepare everything before modifying the previously empty byte store.
-        let candidate = codec::encode_fresh(mem, head, next_collection, identity, retention)?;
-        let header = codec::header(identity);
+        let candidate = if packed {
+            let source;
+            (storage, source) = storage.share(mem)?;
+            storage.identity = identity;
+            storage.packed = Some(source.clone());
+            codec::encode_with_append(
+                mem,
+                head,
+                next_collection,
+                identity,
+                APPEND_START as u64,
+                None,
+                None,
+                retention,
+                codec::AppendBytes::Segmented(crate::memory::ChargedVec::new()),
+                Some(source),
+            )?
+        } else {
+            codec::encode_fresh(mem, head, next_collection, identity, retention)?
+        };
+        let header = codec::file_header(identity, packed);
         write_all(&mut *storage.backend, 0, &header)?;
         let zero = [0; REGION];
         for i in 1..5 {
@@ -267,14 +347,34 @@ impl Storage {
         let source = codec::paging::Source::acquire(backend, mem)?;
         Self::open_impl(source.clone(), mem, Some(source))
     }
+    fn read_locked(
+        mut self,
+        mem: &Memory,
+        source: Option<codec::paging::Source>,
+    ) -> Result<(Self, codec::Recovered, usize)> {
+        let header = codec::read_header(&mut *self.backend)?;
+        let source = if header.packed && source.is_none() {
+            let (shared, s) = self.share(mem)?;
+            self = shared;
+            Some(s)
+        } else {
+            source
+        };
+        if header.packed {
+            self.packed = source.clone();
+        }
+        let id = source.as_ref().map_or(0, |s| s.id());
+        let recovered =
+            codec::recover_after_header(&mut *self.backend, mem, source, false, header)?;
+        Ok((self, recovered, id))
+    }
     fn open_impl<B: ByteStore + 'static>(
         backend: B,
         mem: &Memory,
         source: Option<codec::paging::Source>,
     ) -> Result<(Self, Shared<Head>, u64, Retention)> {
-        let mut storage = Self::locked(backend, mem)?;
-        let id = source.as_ref().map_or(0, |s| s.id());
-        let recovered = codec::recover_with_pages(&mut *storage.backend, mem, source)?;
+        let storage = Self::locked(backend, mem)?;
+        let (mut storage, recovered, id) = storage.read_locked(mem, source)?;
         // Build indexes once, before stabilization I/O; recovered entry order
         // remains authoritative. Subsequent candidates reuse or privately fork.
         let mut cache = ValueCache::from_entries(mem, recovered.cache)?;
@@ -337,16 +437,31 @@ impl Storage {
             return Err(Error::Corrupt);
         }
         let start = codec::align(length)?;
-        let candidate = codec::encode(
-            mem,
-            head,
-            next_collection,
-            self.identity,
-            start,
-            self.cache.as_ref(),
-            self.data_cache.as_ref(),
-            retention,
-        )?;
+        let candidate = if let Some(s) = &self.packed {
+            codec::encode_with_append(
+                mem,
+                head,
+                next_collection,
+                self.identity,
+                start,
+                self.cache.as_ref(),
+                self.data_cache.as_ref(),
+                retention,
+                codec::AppendBytes::Segmented(crate::memory::ChargedVec::new()),
+                Some(s.clone()),
+            )?
+        } else {
+            codec::encode(
+                mem,
+                head,
+                next_collection,
+                self.identity,
+                start,
+                self.cache.as_ref(),
+                self.data_cache.as_ref(),
+                retention,
+            )?
+        };
         self.publish(candidate, head.revision)
     }
     fn publish(&mut self, candidate: codec::Candidate, revision: u64) -> Result<()> {
@@ -375,6 +490,7 @@ impl Storage {
         .and_then(|_| write_synced(&mut *self.backend, ((3 + index) * REGION) as u64, &witness))
         .map_err(|_| Error::OutcomeUnknown)
         .inspect_err(|_| self.poisoned = true)?;
+        self.rebased = candidate.rebased;
         self.revision = revision;
         self.end = candidate.end;
         self.data_cache = Some(candidate.data_cache);
@@ -878,9 +994,16 @@ mod decision_tests {
         let (source, mem, head, retention, original) = fixture();
         assert!(source.cache.is_some() && source.data_cache.is_some());
         let disk = SimulatedDisk::new().unwrap();
-        let (mut copy, size) =
-            Storage::create_compact(disk.clone(), &mem, &head, 1, source.identity, &retention)
-                .unwrap();
+        let (mut copy, size) = Storage::create_compact(
+            disk.clone(),
+            &mem,
+            &head,
+            1,
+            source.identity,
+            &retention,
+            false,
+        )
+        .unwrap();
         assert!(copy.cache.is_none() && copy.data_cache.is_none());
         assert_eq!(size as usize, disk.durable_image().unwrap().len());
         assert_eq!(

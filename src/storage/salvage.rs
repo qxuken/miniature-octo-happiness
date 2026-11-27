@@ -81,13 +81,14 @@ fn salvage<S: ByteStore + 'static, D: ByteStore + 'static>(
         }
     }
     let (slot, recovered) = selected.ok_or(Error::Corrupt)?;
-    let mut copy = Storage::create(
+    let mut copy = Storage::create_format(
         destination()?,
         &mem,
         &recovered.head,
         recovered.next_collection,
         recovered.identity,
         &recovered.retention,
+        recovered.packed,
     )?;
     copy.verify(&mem)?;
     Ok(SalvageReport {

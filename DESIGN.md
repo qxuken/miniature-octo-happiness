@@ -24,6 +24,12 @@ adds local NTFS storage and verified compact copies using the same v2 bytes.
 Implemented behavior and its limits are recorded below; this is not a
 production-safety claim.
 
+New files can opt into format 3 with `DatabaseOptions::with_packed_pages()`.
+Collections store sorted key, record revision and value together in immutable leaves.
+A one-key replacement reuses sibling pages across the published and retained roots.
+The format, publication protocol, and million-key measurements are documented in
+[Packed directory pages](docs/packed-directory.md).
+
 The record-scoped transaction contract, durable commits, explicit retention,
 and optional schemas are agreed decisions. The concrete tree shapes, internal
 structures and ownership choices are **working sketches** except where the

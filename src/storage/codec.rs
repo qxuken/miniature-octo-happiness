@@ -1,3 +1,4 @@
+pub(crate) mod packed;
 pub(crate) mod paging;
 use super::diagnostics::{self, VerificationStage as Stage};
 use super::{APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, read_all, write_all};
@@ -11,6 +12,7 @@ use crate::{
 use paging::{Directory, Graph, Shape, Source};
 
 const VERSION: u32 = crate::version::FORMAT_VERSION;
+pub(crate) const PACKED_VERSION: u32 = 3;
 const MAX_OBJECTS: usize = MAX_IMAGE_BYTES / REGION;
 const OBJECT_HEADER: usize = 64;
 const VALUE: u32 = 1;
@@ -101,10 +103,14 @@ pub(crate) fn align(n: u64) -> Result<u64> {
         Ok(value)
     }
 }
+#[cfg(test)]
 pub(crate) fn header(identity: [u8; 16]) -> [u8; REGION] {
+    file_header(identity, false)
+}
+pub(super) fn file_header(identity: [u8; 16], packed: bool) -> [u8; REGION] {
     let mut out = [0; REGION];
     out[..8].copy_from_slice(b"WEEKDB01");
-    put32(&mut out, 8, VERSION);
+    put32(&mut out, 8, if packed { PACKED_VERSION } else { VERSION });
     put64(&mut out, 16, REGION as u64);
     put64(&mut out, 24, APPEND_START as u64);
     out[32..48].copy_from_slice(&identity);
@@ -411,6 +417,7 @@ impl<T> CacheState<'_, T> {
 }
 
 pub(crate) struct Candidate {
+    pub(super) rebased: Option<Shared<Head>>,
     start: u64,
     bytes: AppendBytes,
     pub descriptor: u64,
@@ -438,7 +445,7 @@ impl Candidate {
 // the ordered writes or their boundaries at the adapter.
 const APPEND_SEGMENT_BYTES: usize = 16 * REGION;
 
-enum AppendBytes {
+pub(super) enum AppendBytes {
     Contiguous(ChargedVec<u8>),
     Segmented(ChargedVec<ChargedVec<u8>>),
 }
@@ -528,6 +535,9 @@ impl<'a> Writer<'a> {
     }
 }
 struct Encoder<'a> {
+    relocation: packed::Relocation,
+    packed: Option<Source>,
+    rebased: Option<Shared<Head>>,
     copied: ChargedVec<Option<Value>>,
     mem: &'a Memory,
     identity: [u8; 16],
@@ -653,6 +663,9 @@ impl Encoder<'_> {
             }
             return Ok(old.offset);
         }
+        if let Some(source) = self.packed.clone() {
+            return self.packed_data(head, next_collection, source);
+        }
         let mut payload = Writer::new(self.mem);
         payload.int(head.data_revision)?;
         payload.int(next_collection)?;
@@ -674,6 +687,7 @@ impl Encoder<'_> {
                     let revision = row.revision();
                     let off = match row {
                         crate::engine::Row::Memory(r) => self.value(&r.value)?,
+                        crate::engine::Row::Packed(r) => self.value(&r.value)?,
                         crate::engine::Row::Disk { graph, offset, .. }
                             if graph.source_id() == self.cache.source_id =>
                         {
@@ -708,15 +722,18 @@ impl Encoder<'_> {
         let offset = self
             .object_born(DATA, &payload.bytes, head.data_revision)?
             .0;
+        self.cache_data(head.data_revision, next_collection, offset)
+    }
+    fn cache_data(&mut self, revision: u64, next_collection: u64, offset: u64) -> Result<u64> {
         let cache = self.data_cache.make_mut(|old| old.fork(self.mem))?;
         cache.index.reserve(self.mem, cache.entries.len() + 1)?;
         self.mem
             .reserve_geometric(&mut cache.entries, 1, MAX_OBJECTS)?;
         cache
             .index
-            .insert(head.data_revision, &cache.entries, cache.entries.len());
+            .insert(revision, &cache.entries, cache.entries.len());
         cache.entries.push(DataEntry {
-            revision: head.data_revision,
+            revision,
             next_collection,
             offset,
         });
@@ -744,6 +761,7 @@ pub(crate) fn encode(
         old_data,
         retention,
         AppendBytes::Contiguous(ChargedVec::new()),
+        None,
     )
 }
 
@@ -764,11 +782,12 @@ pub(super) fn encode_fresh(
         None,
         retention,
         AppendBytes::Segmented(ChargedVec::new()),
+        None,
     )
 }
 
 #[allow(clippy::too_many_arguments)]
-fn encode_with_append(
+pub(super) fn encode_with_append(
     mem: &Memory,
     head: &Head,
     next_collection: u64,
@@ -778,6 +797,7 @@ fn encode_with_append(
     old_data: Option<&Shared<DataCache>>,
     retention: &Retention,
     bytes: AppendBytes,
+    packed: Option<Source>,
 ) -> Result<Candidate> {
     if start < APPEND_START as u64 || !start.is_multiple_of(REGION as u64) {
         return Err(Error::Invalid);
@@ -791,6 +811,9 @@ fn encode_with_append(
         None => CacheState::Owned(DataCache::new()),
     };
     let mut encoder = Encoder {
+        packed,
+        rebased: None,
+        relocation: packed::Relocation::new(),
         copied: ChargedVec::new(),
         mem,
         identity,
@@ -817,6 +840,7 @@ fn encode_with_append(
     }
     let (descriptor, end) = encoder.object(COMMIT, &commit.bytes)?;
     Ok(Candidate {
+        rebased: encoder.rebased,
         start,
         bytes: encoder.bytes,
         descriptor,
@@ -875,6 +899,8 @@ struct Object {
     end: u64,
 }
 struct Reader<'a> {
+    packed: bool,
+    page_cache: packed::PageCache,
     defer_blobs: bool,
     graph: Option<Shared<Graph>>,
     shapes: ChargedVec<Shape>,
@@ -1218,6 +1244,12 @@ impl Reader<'_> {
             }
             previous_id = id;
             let records_count = cursor.count(self.mem.limits().max_entries)?;
+            if self.packed {
+                let c =
+                    self.packed_collection(&mut cursor, offset, content_revision, records_count)?;
+                collections = collections.set(self.mem, &id.to_le_bytes(), c)?;
+                continue;
+            }
             let mut records = Map::new();
             let mut previous: Option<&[u8]> = None;
             let mut directory = self.graph.clone().map(Directory::new);
@@ -1297,6 +1329,7 @@ impl Reader<'_> {
     }
 }
 pub(crate) struct Recovered {
+    pub packed: bool,
     pub identity: [u8; 16],
     pub slot: Slot,
     pub witnessed: bool,
@@ -1329,6 +1362,15 @@ fn recover_mode(
     source: Option<Source>,
     defer_blobs: bool,
 ) -> Result<Recovered> {
+    let header = read_header(backend)?;
+    recover_after_header(backend, mem, source, defer_blobs, header)
+}
+pub(super) struct ImageHeader {
+    length: u64,
+    identity: [u8; 16],
+    pub(super) packed: bool,
+}
+pub(super) fn read_header(backend: &mut dyn ByteStore) -> Result<ImageHeader> {
     diagnostics::clear_verification();
     let length = diagnostics::verify(Stage::ImageLength, None, || {
         let length = backend.length()?;
@@ -1337,10 +1379,10 @@ fn recover_mode(
         }
         Ok(length)
     })?;
-    let identity = diagnostics::verify(Stage::Header, Some(0), || {
+    let (identity, packed) = diagnostics::verify(Stage::Header, Some(0), || {
         let mut header = [0; REGION];
         read_all(backend, 0, &mut header)?;
-        if &header[..8] != b"WEEKDB01" || u32_at(&header, 8) != VERSION {
+        if &header[..8] != b"WEEKDB01" || !matches!(u32_at(&header, 8), VERSION | PACKED_VERSION) {
             return Err(Error::UnsupportedFormat);
         }
         if checksum(&header, 64) != u64_at(&header, 64)
@@ -1357,8 +1399,25 @@ fn recover_mode(
         if identity == [0; 16] {
             return Err(Error::Corrupt);
         }
-        Ok(identity)
+        Ok((identity, u32_at(&header, 8) == PACKED_VERSION))
     })?;
+    Ok(ImageHeader {
+        length,
+        identity,
+        packed,
+    })
+}
+pub(super) fn recover_after_header(
+    backend: &mut dyn ByteStore,
+    mem: &Memory,
+    source: Option<Source>,
+    defer_blobs: bool,
+    ImageHeader {
+        length,
+        identity,
+        packed,
+    }: ImageHeader,
+) -> Result<Recovered> {
     let mut slots = [None; 2];
     let mut witnesses = [None; 2];
     for i in 0..2 {
@@ -1396,6 +1455,8 @@ fn recover_mode(
     diagnostics::verify(Stage::CommitDescriptor, Some(slot.descriptor), || {
         let graph = source.map(|s| mem.shared(Graph::new(s))).transpose()?;
         let mut reader = Reader {
+            packed,
+            page_cache: packed::PageCache::new(),
             defer_blobs: defer_blobs && witnesses[slot.index] == Some(slot),
             graph: graph.clone(),
             shapes: ChargedVec::new(),
@@ -1476,6 +1537,7 @@ fn recover_mode(
             graph.finish(reader.regions, reader.shapes);
         }
         Ok(Recovered {
+            packed,
             identity,
             slot,
             witnessed: witnesses[slot.index] == Some(slot),
@@ -1753,6 +1815,9 @@ mod tests {
         let cached = Value::bytes_new(&mem, b"shared").unwrap();
         let uncached = Value::bytes_new(&mem, b"new").unwrap();
         let make_encoder = |start, cache| Encoder {
+            packed: None,
+            rebased: None,
+            relocation: packed::Relocation::new(),
             copied: ChargedVec::new(),
             mem: &mem,
             identity: ID,
@@ -2003,6 +2068,9 @@ mod tests {
         let allocator = Arc::new(TestAllocator::default());
         let mem = allocator.memory(Limits::default());
         let make_encoder = |start, data_cache| Encoder {
+            packed: None,
+            rebased: None,
+            relocation: packed::Relocation::new(),
             copied: ChargedVec::new(),
             mem: &mem,
             identity: ID,
@@ -3041,7 +3109,9 @@ mod tests {
             ("zero file identity", 32, true, Error::Corrupt),
         ] {
             let mut image = original.clone();
-            if offset == 32 {
+            if offset == 8 {
+                put32(&mut image, 8, PACKED_VERSION + 1);
+            } else if offset == 32 {
                 image[32..48].fill(0);
             } else {
                 image[offset] ^= 1;
@@ -3813,7 +3883,7 @@ mod tests {
         resign(&mut image, root, size, 48);
         assert_eq!(rejected(&image), Error::Corrupt);
         let mut image = original.clone();
-        put32(&mut image, 8, VERSION + 1);
+        put32(&mut image, 8, PACKED_VERSION + 1);
         resign(&mut image, 0, REGION, 64);
         assert_eq!(rejected(&image), Error::UnsupportedFormat);
         let mut image = original.clone();
@@ -4241,6 +4311,9 @@ mod tests {
         );
         assert!(writer.bytes.is_empty());
         let mut encoder = Encoder {
+            packed: None,
+            rebased: None,
+            relocation: packed::Relocation::new(),
             copied: ChargedVec::new(),
             mem: &mem,
             identity: ID,
@@ -4307,6 +4380,9 @@ mod tests {
             );
         }
         let mut encoder = Encoder {
+            packed: None,
+            rebased: None,
+            relocation: packed::Relocation::new(),
             copied: ChargedVec::new(),
             mem: &mem,
             identity: ID,

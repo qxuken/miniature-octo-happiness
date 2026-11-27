@@ -39,7 +39,11 @@ fn information(
         });
     }
     Ok(ImageInfo {
-        format_version: crate::version::FORMAT_VERSION,
+        format_version: if recovered.packed {
+            codec::PACKED_VERSION
+        } else {
+            crate::version::FORMAT_VERSION
+        },
         identity: recovered.identity,
         revision: recovered.head.revision,
         data_revision: recovered.head.data_revision,
@@ -68,8 +72,7 @@ pub fn inspect_on_with_options<B: ByteStore + 'static>(
         let recovered = codec::recover_with_pages(&mut *source.backend, &mem, Some(page_source))?;
         information(&mut source, &recovered, &mem)
     } else {
-        let mut source = Storage::locked(backend, &mem)?;
-        let recovered = codec::recover(&mut *source.backend, &mem)?;
+        let (mut source, recovered, _) = Storage::locked(backend, &mem)?.read_locked(&mem, None)?;
         information(&mut source, &recovered, &mem)
     }
 }
@@ -87,6 +90,7 @@ fn copy_verified<B: ByteStore + 'static>(
             next_collection,
             identity,
             retention,
+            packed,
             cache,
             data_cache,
             ..
@@ -94,13 +98,14 @@ fn copy_verified<B: ByteStore + 'static>(
         // File-local offsets belong to the source. The copy encodes its own.
         drop(cache);
         drop(data_cache);
-        Storage::create(
+        Storage::create_format(
             destination,
             mem,
             &head,
             next_collection,
             identity,
             &retention,
+            packed,
         )?
     };
     // The offline copy only returns sizes. Release cached references before
@@ -123,8 +128,7 @@ pub fn backup_on<S: ByteStore + 'static, D: ByteStore + 'static>(
     limits: Limits,
 ) -> Result<CompactionStats> {
     let mem = Memory::new(limits)?;
-    let mut source = Storage::locked(source, &mem)?;
-    let recovered = codec::recover(&mut *source.backend, &mem)?;
+    let (mut source, recovered, _) = Storage::locked(source, &mem)?.read_locked(&mem, None)?;
     copy_verified(&mut source, recovered, destination, &mem)
 }
 
@@ -153,8 +157,9 @@ pub fn backup_file(
     limits: Limits,
 ) -> Result<CompactionStats> {
     let mem = Memory::new(limits)?;
-    let mut source = Storage::locked(super::FileStore::open_read_only(source)?, &mem)?;
-    let recovered = codec::recover(&mut *source.backend, &mem)?;
+    let (mut source, recovered, _) =
+        Storage::locked(super::FileStore::open_read_only(source)?, &mem)?
+            .read_locked(&mem, None)?;
     let destination = super::FileStore::create(destination)?;
     copy_verified(&mut source, recovered, destination, &mem)
 }

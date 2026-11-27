@@ -1,6 +1,6 @@
 # Production qualification status
 
-The [v2 paging implementation and measurements](paged-reads.md) cover strict writable open, witnessed read-only open, on-demand values, ordered visits and retained-root verification. A million-key directory with a shared value fits a 64 MiB reader budget, including a retained one-key commit. The durable capacity track still needs packed independently stored values, incremental on-disk directory updates and a migration for larger files.
+The [v2 paged reader](paged-reads.md) supports existing files. The [v3 packed directory](packed-directory.md) adds on-disk copy-on-write and independently stored small values. With a 64 MiB engine budget, macOS/APFS and Linux/ext4 both reopened and verified two million-row snapshots after a one-key replacement appended 16 KiB. Remaining capacity work includes a v2-to-v3 migration, larger files and qualification of the new format on native Windows and distributed paths.
 
 Release scope includes the local store, typed Rust, snapshot replication,
 CRDT peers and coordinator, as requested on 2026-11-09. The project uses

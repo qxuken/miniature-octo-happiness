@@ -956,7 +956,7 @@
     {
       "name": "r1-metadata-header-version",
       "file": "src/storage/codec.rs",
-      "old": "u32_at(&header, 8) != VERSION",
+      "old": "!matches!(u32_at(&header, 8), VERSION | PACKED_VERSION)",
       "new": "false",
       "test": "storage::codec::tests::recovery_rejects_each_invalid_header_field_before_reading_slots",
       "target": "--lib",
@@ -1641,8 +1641,8 @@
     {
       "name": "r1-graph-length-diagnostic",
       "file": "src/storage/codec.rs",
-      "old": "})?;\n    let identity = diagnostics::verify(Stage::Header",
-      "new": "}).unwrap();\n    let identity = diagnostics::verify(Stage::Header",
+      "old": "})?;\n    let (identity, packed) = diagnostics::verify(Stage::Header",
+      "new": "}).unwrap();\n    let (identity, packed) = diagnostics::verify(Stage::Header",
       "test": "durability",
       "target": "--test",
       "occurrence": 1,
@@ -1653,8 +1653,8 @@
     {
       "name": "r1-graph-header-diagnostic",
       "file": "src/storage/codec.rs",
-      "old": "})?;\n    let mut slots = [None; 2];",
-      "new": "}).unwrap();\n    let mut slots = [None; 2];",
+      "old": "})?;\n    Ok(ImageHeader {",
+      "new": "}).unwrap();\n    Ok(ImageHeader {",
       "test": "durability",
       "target": "--test",
       "occurrence": 1,
@@ -3420,8 +3420,8 @@
       "new": "self.value(&r.value).map_err(|_| Error::Invalid)?",
       "test": "storage::codec::tests::data_encoding_orders_records_and_keeps_the_acknowledged_cache",
       "target": "--lib",
-      "occurrence": 2,
-      "matches": 2,
+      "occurrence": 3,
+      "matches": 3,
       "package": "weekend-db"
     },
     {
@@ -3760,8 +3760,8 @@
     {
       "name": "r1-alloc-commit-preparation",
       "file": "src/storage/mod.rs",
-      "old": "codec::encode(\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            start,\n            self.cache.as_ref(),\n            self.data_cache.as_ref(),\n            retention,\n        )?",
-      "new": "codec::encode(\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            start,\n            self.cache.as_ref(),\n            self.data_cache.as_ref(),\n            retention,\n        ).map_err(|e| if e == Error::OutOfMemory { Error::Invalid } else { e })?",
+      "old": "codec::encode(\n                mem,\n                head,\n                next_collection,\n                self.identity,\n                start,\n                self.cache.as_ref(),\n                self.data_cache.as_ref(),\n                retention,\n            )?",
+      "new": "codec::encode(\n                mem,\n                head,\n                next_collection,\n                self.identity,\n                start,\n                self.cache.as_ref(),\n                self.data_cache.as_ref(),\n                retention,\n            ).map_err(|e| if e == Error::OutOfMemory { Error::Invalid } else { e })?",
       "test": "durability",
       "target": "--test",
       "occurrence": 1,
@@ -6400,7 +6400,7 @@
       "test": "storage_decisions",
       "target": "--test",
       "occurrence": 1,
-      "matches": 2,
+      "matches": 1,
       "package": "weekend-db",
       "exact_test": "contended_creation_and_reopen_do_no_io_and_preserve_the_owner"
     },
@@ -6455,8 +6455,8 @@
     {
       "name": "r1-storage-admission-create-prepare-first",
       "file": "src/storage/mod.rs",
-      "old": "let candidate = codec::encode_fresh(mem, head, next_collection, identity, retention)?;\n        let header = codec::header(identity);\n        write_all(&mut *storage.backend, 0, &header)?;",
-      "new": "let header = codec::header(identity);\n        write_all(&mut *storage.backend, 0, &header)?;\n        let candidate = codec::encode_fresh(mem, head, next_collection, identity, retention)?;",
+      "old": "let candidate = if packed {",
+      "new": "write_all(&mut *storage.backend, 0, &codec::file_header(identity,packed))?;\n        let candidate = if packed {",
       "test": "durability",
       "target": "--test",
       "occurrence": 1,
@@ -6515,20 +6515,20 @@
     {
       "name": "r1-storage-admission-open-lease",
       "file": "src/storage/mod.rs",
-      "old": "let mut storage = Self::locked(backend, mem)?",
-      "new": "let mut storage = Self::locked(backend, mem).map_err(|_| Error::Invalid)?",
+      "old": "let storage = Self::locked(backend, mem)?",
+      "new": "let storage = Self::locked(backend, mem).map_err(|_| Error::Invalid)?",
       "test": "storage_decisions",
       "target": "--test",
-      "occurrence": 2,
-      "matches": 2,
+      "occurrence": 1,
+      "matches": 1,
       "package": "weekend-db",
       "exact_test": "contended_creation_and_reopen_do_no_io_and_preserve_the_owner"
     },
     {
       "name": "r1-storage-admission-open-decode",
       "file": "src/storage/mod.rs",
-      "old": "codec::recover_with_pages(&mut *storage.backend, mem, source)?",
-      "new": "codec::recover_with_pages(&mut *storage.backend, mem, source).map_err(|_| Error::Invalid)?",
+      "old": "storage.read_locked(mem, source)?",
+      "new": "storage.read_locked(mem, source).map_err(|_| Error::Invalid)?",
       "test": "durability",
       "target": "--test",
       "occurrence": 1,
@@ -6764,8 +6764,8 @@
     {
       "name": "r1-compact-copy-destination",
       "file": "src/storage/mod.rs",
-      "old": "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n        )?",
-      "new": "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n        ).map_err(|_| Error::Invalid)?",
+      "old": "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n            self.packed.is_some(),\n        )?",
+      "new": "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n            self.packed.is_some(),\n        ).map_err(|_| Error::Invalid)?",
       "test": "compaction",
       "target": "--test",
       "occurrence": 1,
@@ -6776,8 +6776,8 @@
     {
       "name": "r1-compact-copy-create",
       "file": "src/storage/mod.rs",
-      "old": "Self::create(destination, mem, head, next_collection, identity, retention)?",
-      "new": "Self::create(destination, mem, head, next_collection, identity, retention).map_err(|_| Error::Invalid)?",
+      "old": "Self::create_format(\n            destination,\n            mem,\n            head,\n            next_collection,\n            identity,\n            retention,\n            packed,\n        )?",
+      "new": "Self::create_format(\n            destination,\n            mem,\n            head,\n            next_collection,\n            identity,\n            retention,\n            packed,\n        ).map_err(|_| Error::Invalid)?",
       "test": "compaction",
       "target": "--test",
       "occurrence": 1,
@@ -6799,8 +6799,8 @@
     {
       "name": "r1-compact-copy-decode",
       "file": "src/storage/mod.rs",
-      "old": "codec::recover(&mut *self.backend, mem)?",
-      "new": "codec::recover(&mut *self.backend, mem).map_err(|_| Error::Invalid)?",
+      "old": "codec::recover_with_pages(&mut *self.backend, mem, self.packed.clone())?",
+      "new": "codec::recover_with_pages(&mut *self.backend, mem, self.packed.clone()).map_err(|_| Error::Invalid)?",
       "test": "compaction",
       "target": "--test",
       "occurrence": 1,
@@ -13927,8 +13927,8 @@
     {
       "name": "r1-engine-constructor-create-image",
       "file": "src/engine.rs",
-      "old": "Storage::create(\n                backend,\n                &db.mem,\n                &state.head,\n                state.next_collection,\n                identity,\n                &state.retention,\n            )?",
-      "new": "Storage::create(\n                backend,\n                &db.mem,\n                &state.head,\n                state.next_collection,\n                identity,\n                &state.retention,\n            ).map_err(|_| Error::Invalid)?",
+      "old": "Storage::create_format(\n                backend,\n                &db.mem,\n                &state.head,\n                state.next_collection,\n                identity,\n                &state.retention,\n                packed,\n            )?",
+      "new": "Storage::create_format(\n                backend,\n                &db.mem,\n                &state.head,\n                state.next_collection,\n                identity,\n                &state.retention,\n                packed,\n            ).map_err(|_| Error::Invalid)?",
       "package": "weekend-db",
       "occurrence": 1,
       "matches": 1,
@@ -14315,8 +14315,8 @@
     {
       "name": "r1-inspection-current-inspect-graph",
       "file": "src/storage/inspection.rs",
-      "old": "        let recovered = codec::recover(&mut *source.backend, &mem)?;",
-      "new": "        let recovered = codec::recover(&mut *source.backend, &mem).map_err(|_| crate::Error::Invalid)?;",
+      "old": "Storage::locked(backend, &mem)?.read_locked(&mem, None)?",
+      "new": "Storage::locked(backend, &mem)?.read_locked(&mem, None).map_err(|_| crate::Error::Invalid)?",
       "package": "weekend-db",
       "matches": 1,
       "occurrence": 1,
@@ -14339,8 +14339,8 @@
     {
       "name": "r1-inspection-current-destination-create",
       "file": "src/storage/inspection.rs",
-      "old": "Storage::create(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n        )?",
-      "new": "Storage::create(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n        ).map_err(|_| crate::Error::Io)?",
+      "old": "Storage::create_format(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n            packed,\n        )?",
+      "new": "Storage::create_format(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n            packed,\n        ).map_err(|_| crate::Error::Io)?",
       "package": "weekend-db",
       "matches": 1,
       "occurrence": 1,
@@ -14375,8 +14375,8 @@
     {
       "name": "r1-inspection-current-backup-lease",
       "file": "src/storage/inspection.rs",
-      "old": ") -> Result<CompactionStats> {\n    let mem = Memory::new(limits)?;\n    let mut source = Storage::locked(source, &mem)?;\n    let recovered = codec::recover(&mut *source.backend, &mem)?;\n    copy_verified(&mut source, recovered, destination, &mem)",
-      "new": ") -> Result<CompactionStats> {\n    let mem = Memory::new(limits)?;\n    let mut source = Storage::locked(source, &mem).map_err(|_| crate::Error::Invalid)?;\n    let recovered = codec::recover(&mut *source.backend, &mem)?;\n    copy_verified(&mut source, recovered, destination, &mem)",
+      "old": "Storage::locked(source, &mem)?.read_locked(&mem, None)?",
+      "new": "Storage::locked(source, &mem).map_err(|_| crate::Error::Invalid)?.read_locked(&mem, None)?",
       "package": "weekend-db",
       "matches": 1,
       "occurrence": 1,
@@ -14387,8 +14387,8 @@
     {
       "name": "r1-inspection-current-backup-graph",
       "file": "src/storage/inspection.rs",
-      "old": "    let mut source = Storage::locked(source, &mem)?;\n    let recovered = codec::recover(&mut *source.backend, &mem)?;\n    copy_verified(&mut source, recovered, destination, &mem)",
-      "new": "    let mut source = Storage::locked(source, &mem)?;\n    let recovered = codec::recover(&mut *source.backend, &mem).map_err(|_| crate::Error::Invalid)?;\n    copy_verified(&mut source, recovered, destination, &mem)",
+      "old": "Storage::locked(source, &mem)?.read_locked(&mem, None)?",
+      "new": "Storage::locked(source, &mem)?.read_locked(&mem, None).map_err(|_| crate::Error::Invalid)?",
       "package": "weekend-db",
       "matches": 1,
       "occurrence": 1,
@@ -24568,6 +24568,30 @@
       "matches": 1,
       "package": "weekend-db",
       "exact_test": "disk_reads_verify_page_and_nested_value_bytes_against_open_time_checksums"
+    },
+    {
+      "name": "r1-packed-leaf-order",
+      "file": "src/storage/codec/packed.rs",
+      "old": "l.last.as_slice() >= leaf.first.as_slice()",
+      "new": "false",
+      "test": "packed_directory",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "resealed_branch_cannot_repeat_a_leaf_or_point_into_an_object"
+    },
+    {
+      "name": "r1-packed-reuse-branch",
+      "file": "src/storage/codec/packed/write.rs",
+      "old": "if changes.is_empty() {",
+      "new": "if false {",
+      "test": "packed_directory",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "one_replacement_appends_only_the_path_in_a_multibranch_directory"
     }
   ]
 }

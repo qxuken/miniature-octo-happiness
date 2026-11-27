@@ -204,6 +204,12 @@ static void verify_file_allocator_contract(void) {
         assert(actual_size == image_size && memcmp(actual, image, image_size) == 0);
         free(actual);
     }
+    assert(wdb_file_create_packed((const uint8_t *)trial, strlen(trial), NULL, &db) == WDB_OK);
+    assert(wdb_collection_create(db, &collection) == WDB_OK);
+    assert(store_file_row(db, collection, 42) == 2);
+    assert(wdb_close(db) == WDB_OK);
+    assert(wdb_file_open((const uint8_t *)trial, strlen(trial), &db) == WDB_OK);
+    assert(wdb_close(db) == WDB_OK && remove(trial) == 0);
     free(image);
     assert(remove(path) == 0);
     printf("C file allocator contract: %zu create refusals (%zu absent, %zu empty, %zu published), "

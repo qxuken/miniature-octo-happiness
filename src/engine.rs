@@ -53,7 +53,7 @@ impl CollectionId {
 }
 mod pages;
 mod read_only;
-pub(crate) use pages::{Base, Row};
+pub(crate) use pages::{Backing, Base, Row};
 pub use read_only::ReadOnlyDatabase;
 #[derive(Clone)]
 pub(crate) struct Record {
@@ -78,6 +78,7 @@ struct State {
 }
 #[cfg(feature = "replication")]
 pub(crate) struct ReplicationSnapshot {
+    packed: bool,
     pub(crate) head: Shared<Head>,
     pub(crate) identity: [u8; 16],
     next_collection: u64,
@@ -97,6 +98,7 @@ impl ReplicationSnapshot {
             self.next_collection,
             self.identity,
             &self.retention,
+            self.packed,
         )
     }
 }
@@ -117,6 +119,7 @@ impl Publication<'_> {
             mut storage,
             state,
         } = self;
+        let mut head = head;
         if let Some(backend) = storage.as_mut() {
             backend.persist(
                 &db.mem,
@@ -124,6 +127,9 @@ impl Publication<'_> {
                 next_collection,
                 retention.as_ref().unwrap_or(&state.retention),
             )?;
+        }
+        if let Some(new) = storage.as_mut().and_then(|s| s.rebased.take()) {
+            head = new;
         }
         // Keep the writer mutex held through installation. Readers may have
         // acquired the prior state while persistence was in progress.
@@ -143,6 +149,7 @@ impl Publication<'_> {
 #[derive(Default)]
 pub struct DatabaseOptions {
     pub(crate) paged_reads: bool,
+    packed_pages: bool,
     pub limits: Limits,
     pub(crate) allocator: AllocatorHandle,
 }
@@ -162,6 +169,13 @@ impl DatabaseOptions {
     pub fn with_paged_reads(mut self) -> Self {
         self.paged_reads = true;
         self
+    }
+
+    /// Create new images with packed, copy-on-write directory pages (format 3).
+    /// Existing images retain the format selected at creation.
+    pub fn with_packed_pages(mut self) -> Self {
+        self.packed_pages = true;
+        self.with_paged_reads()
     }
 
     pub fn with_limits(mut self, limits: Limits) -> Self {
@@ -323,6 +337,7 @@ impl Database {
         let storage = writer.as_ref().ok_or(Error::Invalid)?;
         let state = self.read_state();
         Ok(ReplicationSnapshot {
+            packed: storage.packed.is_some(),
             head: state.head.clone(),
             identity: storage.identity(),
             next_collection: state.next_collection,
@@ -421,16 +436,18 @@ impl Database {
         identity: [u8; 16],
         options: DatabaseOptions,
     ) -> Result<Self> {
+        let packed = options.packed_pages;
         let mut db = Self::with_options(options)?;
         let storage = {
             let state = db.read_state();
-            Storage::create(
+            Storage::create_format(
                 backend,
                 &db.mem,
                 &state.head,
                 state.next_collection,
                 identity,
                 &state.retention,
+                packed,
             )?
         };
         *db.writer.get_mut().unwrap() = Some(storage);
