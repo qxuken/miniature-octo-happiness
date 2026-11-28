@@ -14,7 +14,7 @@
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
-    "apps/weekend-replicate/src/native.rs": "1bc1c4acbb9396680175062487e6eb8920faf843390084a0206e442dd6a64a22",
+    "apps/weekend-replicate/src/native.rs": "18b6deede9e1a7c1f2a9fb4a291557c1ea13742aa096296c0837cf0c3409a6bb",
     "apps/weekend-replicate/src/native/admission.rs": "1f8a4b980720e8fa5fee5aa7325af7390597dcb0f021ed990b40691677a0ad5a",
     "apps/weekend-replicate/src/native/capture_record.rs": "223a36ac490ec4448b301f3f4a777e4ba3d198b62b9b0da9abfbe19da5656954",
     "apps/weekend-replicate/src/tls.rs": "bd0e599e22191a68b19f4ff6ec552d90c177b64b48722d063e2f97fae60c959c",
@@ -102,15 +102,15 @@
     "src/ffi.rs": "a8680cce90105fc1a65906ecc2d36a45d469064b1beb1aa2f1285798817ede0f",
     "src/lib.rs": "a0fe73f74af38d68a90bddb23670e3fc0e41c48d4fe0cec9a6611fb02fd5fc0c",
     "src/memory.rs": "9cdbed77d31d5fa82baaac45ea46a5111a30d106901b0e48be1f2bf86d1f0d49",
-    "src/replication/follower.rs": "f93767dcc42bd4ada2a27800fdb2e9149f10610b488c7f94e769448de84cd20a",
+    "src/replication/follower.rs": "bd6e311f683697850ddcef6df9a867f0f4a1d91be6a6ffe1b29d2b38d6a17b40",
     "src/replication/mod.rs": "1b6449768d611118ff1cf482e1a97bd784cee543a9726b75e3b5469c2272d132",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
     "src/schema.rs": "66bb396906513bf771b53627bbfeccc9da8a719bb3667df996677398f17170b8",
-    "src/storage/codec.rs": "8b0797b055d162c2783b61698eeaa494b05de107a1570eae45e20384eb3350a2",
+    "src/storage/codec.rs": "09d328e4e6f64e934a02aa07161b103168bceda9fad97c4234c7317996bb64b1",
     "src/storage/codec/extents.rs": "7077d41d1d67d6d27413697880a2b53055c882fae5a51b4c18970d617112ec66",
-    "src/storage/codec/packed.rs": "7558e281dfeebf4c295026c492121581d87a4694ad2157c0b7aa326861436c37",
-    "src/storage/codec/packed/blob.rs": "49de2ce0511b37c621334c39f794a20ae7e4467b3c72dbea70ce8c5c3b7c0427",
-    "src/storage/codec/packed/write.rs": "8f0db1df69ad1c285870ee00c3e86d232fc769663f46f23e1569d6aafd75c971",
+    "src/storage/codec/packed.rs": "571a06ccc27e1773645cbaa4292a2e5e5a60a0de23f0e7a85f34e2af3588ccae",
+    "src/storage/codec/packed/blob.rs": "81efb9f8206fe61064543d191dc6ca89b10111f30214db55a59713687cd87c76",
+    "src/storage/codec/packed/write.rs": "8eadc3156827689a7f3d7775fb345f2c4cd8e071cb55589054c4a48add03fde8",
     "src/storage/codec/paging.rs": "1b99bca1e9b2d76ea0b744d83d796c522dce80d55b4f220366a37e8344299b19",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
     "src/storage/file.rs": "469f8da798a15c3aae372e490ce81a5c3f11116c9759a023091c70c8f8dc1d19",
@@ -130,7 +130,7 @@
     "src/storage/windows_path.rs": "74eab9df1d4c9aa0314f79e75bd68986429d7863079af68df3795a5b2e35f9fe",
     "src/storage/windows_rng.rs": "80fe6d4649e03e6c54ca8e2049800a7733b87cbdcb560b4412a23cdeb8e883d6",
     "src/tree.rs": "f2b4099a101747b657f8990d223710cbd176f8ef9e251b5799fa4744ccd8c8b3",
-    "src/value.rs": "812d6dbcbb8b28402aefc912ab2149013587a97ef8d1d317442f7ab9412c4859",
+    "src/value.rs": "84f01dac8431735dd2cfd0df5dde887756dd6d8d61500553909d07d2327401a1",
     "src/version.rs": "5006fbd7ced8252c579cb6695cd0ecbf1c6ab15491a7fc43f8a999539cb2fcf3",
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
     "tests/support/mod.rs": "007e7da58df3c8818418cb4460436e7b15e18026a32b5b0b742ebc78c89a7ab4",
@@ -243,9 +243,9 @@
     "apps/support/pinned_tls.rs": "056b374b234ba260a66cfe1916300838d5861594a61a53bc9c1b8cc0ac889e3c",
     "apps/weekend-replicate/src/native/admission.rs": "1f8a4b980720e8fa5fee5aa7325af7390597dcb0f021ed990b40691677a0ad5a",
     "apps/weekend-replicate/src/native/pin_tests.rs": "76b408cae4f5a780ecbedf28352d118893d22f60ec1c7f6cf9ba39bbd11f748c",
-    "apps/weekend-replicate/src/native/tests.rs": "a50bfdb8d5cb0af1d20d178f8e7f640bcd59ba3900b070a576595553865fc7e1",
+    "apps/weekend-replicate/src/native/tests.rs": "9b15fe44bac59ee29c99a5cdf4771c71337799949838e98111d6d97f2fc245e6",
     "apps/weekend-replicate/tests/audit_cli.rs": "273b5711541e219ca03885c66cca8addc8cd60eb0bd9031cbe90d1e7a7c5d056",
-    "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
+    "apps/weekend-replicate/tests/cli.rs": "0f0fb3789f066ac02c923ef77d552d9f33e85e5f8efda4eb054733bb7c03796f",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "f88c7ff42b84ba746d7b67f52b859cad808460f3acf6b9d5d28b68e57691088f",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
@@ -449,7 +449,7 @@
     "include/weekend_db.h": "0398a7c04dd861bc17e1f03cb7e1809f4c7ee20003f8f4a23ff832ca9007d97f",
     "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
     "src/memory/test_allocator.rs": "82ae341c680760f0d6980cf367e4c247f8cdd756635de7a399eb820d78924029",
-    "src/replication/follower/tests.rs": "0eef7bcc07757e539a9c58c16daf2419a4040692c3cc6de961d64a35d154c11c",
+    "src/replication/follower/tests.rs": "5b34035fa1b08320bdeadffad6f91af55ab9f2f7d8016a7e6c085cf104bd8cfe",
     "src/replication/tests.rs": "cf186681bf818dab246b21c0085c64ad609a161dd36445605df8b64f8d2a5a71",
     "src/storage/file.rs": "469f8da798a15c3aae372e490ce81a5c3f11116c9759a023091c70c8f8dc1d19",
     "src/storage/logical/decisions.rs": "b3bd8042e68a4f4e56455998d19d579d39d87529b63303d36768ff9f15959bf8",
@@ -469,6 +469,7 @@
     "tests/linux_architecture.rs": "45f6c0859c890fe3540f3f322f0d1d5d41aff762eb116066fe07ec0143a36e2e",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
     "tests/logical.rs": "ef4f3a09a7d51234e588f17f6d995904d681d5ba5ccae07f7a11e76ba7304c9e",
+    "tests/packed_blobs.rs": "5af155b3e02ad99eee9ede8e2e7fef3fe9a28768269f26d4e03d23b7bae28163",
     "tests/packed_directory.rs": "48f48f04cc7b51eff72c4ce5932087b946a973b33eacb188a2f94c4b7e56a567",
     "tests/paging.rs": "cd86dd3e65ebf41e60b92c29869e8e8b9dfc501892eb5880c9951c775c9299e2",
     "tests/replication.rs": "91cc5dc9e1e33f05657e58105c6f3ee4d15ba043dedc381350c04ae8a99a4dcc",
@@ -497,7 +498,7 @@
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
     "xtask/tests/mutations-windows.json": "6a2eb401d709f79bed86b435797a054729fedd60da8b6dffc0f9ce918de35862",
-    "xtask/tests/mutations.json": "53bca5b41d80c07dfba1d71ef228d81649a3ddd9919ba3ab608ad7a58ceefeca",
+    "xtask/tests/mutations.json": "97c35aef1143177cbc47f9478713f934b596f305a240440eae86586289d5aaa6",
     "xtask/tests/supervise.rs": "c246ea1294e470f8a32271209c961da00c116bbf8c6ad3811154a0d00e2067d8"
   },
   "target_records": {
@@ -552,12 +553,12 @@
     "weekend-db::study_progress": 31,
     "weekend-db::typed": 186,
     "weekend-db::weekend-admin": 37,
-    "weekend-db::weekend_db": 2291,
+    "weekend-db::weekend_db": 2299,
     "weekend-decision-inventory::weekend-decision-inventory": 413,
     "weekend-native-soak::weekend-native-soak": 17,
     "weekend-probe::weekend_probe": 46,
     "weekend-replicate::live_month": 127,
-    "weekend-replicate::weekend-replicate": 252,
+    "weekend-replicate::weekend-replicate": 260,
     "weekend-resource-envelope::build-script-build": 1,
     "weekend-resource-envelope::weekend-compound-resource": 227,
     "weekend-resource-envelope::weekend-resource-envelope": 30,
@@ -9780,10 +9781,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/value.rs",
-        "owner": "bytes_new",
+        "owner": "bytes_weight",
         "kind": "if",
         "conditions": [
-          "bytes.len() > mem.limits().max_bytes"
+          "len > mem.limits().max_bytes"
         ]
       },
       "tests": [
@@ -9816,7 +9817,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/value.rs",
-        "owner": "bytes_new",
+        "owner": "bytes_weight",
         "kind": "if",
         "conditions": [
           "weight > mem.limits().max_value_bytes"
@@ -20951,7 +20952,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "handle",
         "kind": "if",
-        "start_byte": 6462,
+        "start_byte": 6362,
         "conditions": [
           "offer.revision < prior.offer.revision",
           "offer == prior.offer"
@@ -20999,7 +21000,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "handle",
         "kind": "if",
-        "start_byte": 6640,
+        "start_byte": 6540,
         "conditions": [
           "offer.revision == prior.offer.revision"
         ]
@@ -27671,7 +27672,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "match_guard",
-        "start_byte": 4074,
+        "start_byte": 4728,
         "conditions": [
           "c == \"--help\"",
           "c == \"-h\""
@@ -27719,7 +27720,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "option",
         "kind": "if",
-        "start_byte": 3776,
+        "start_byte": 3801,
         "conditions": [
           "n == 0",
           "n > maximum"
@@ -32622,7 +32623,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17724,
+        "start_byte": 18497,
         "conditions": [
           "TcpListener::bind(address)"
         ]
@@ -32645,7 +32646,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17847,
+        "start_byte": 18620,
         "conditions": [
           "diagnostics::at(Phase::Listen, || {\n        let listener = TcpListener::bind(address)?;\n        nonblocking(&listener)?;\n        let address = bound_address(&listener)?;\n        Ok((listener, address))\n    })"
         ]
@@ -32668,7 +32669,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17907,
+        "start_byte": 18680,
         "conditions": [
           "write_report(output, format_args!(\"ready {address}\"))"
         ]
@@ -32691,7 +32692,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "poll",
         "kind": "try_propagation",
-        "start_byte": 11720,
+        "start_byte": 12493,
         "conditions": [
           "write_report(output, format_args!(\"local verified_revision={revision}\"))"
         ]
@@ -32714,7 +32715,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "write_report",
         "kind": "try_propagation",
-        "start_byte": 3114,
+        "start_byte": 3139,
         "conditions": [
           "output.flush()"
         ]
@@ -32737,7 +32738,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "retry_ship",
         "kind": "if",
-        "start_byte": 15790,
+        "start_byte": 16563,
         "conditions": [
           "permanent",
           "attempt + 1 == attempts"
@@ -32785,7 +32786,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17757,
+        "start_byte": 18530,
         "conditions": [
           "nonblocking(&listener)"
         ]
@@ -32808,7 +32809,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17806,
+        "start_byte": 18579,
         "conditions": [
           "bound_address(&listener)"
         ]
@@ -34845,7 +34846,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "identity",
         "kind": "try_propagation",
-        "start_byte": 1934,
+        "start_byte": 1959,
         "conditions": [
           "text(s)"
         ]
@@ -34868,7 +34869,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "identity",
         "kind": "if",
-        "start_byte": 1941,
+        "start_byte": 1966,
         "conditions": [
           "s.len() != 32",
           "!s.bytes().all(|b| b.is_ascii_hexdigit())"
@@ -34916,7 +34917,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "identity",
         "kind": "if",
-        "start_byte": 2141,
+        "start_byte": 2166,
         "conditions": [
           "id == [0; 16]"
         ]
@@ -34953,7 +34954,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "enrollment",
         "kind": "try_propagation",
-        "start_byte": 2360,
+        "start_byte": 2385,
         "conditions": [
           "identity(stream)"
         ]
@@ -34976,7 +34977,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "enrollment",
         "kind": "try_propagation",
-        "start_byte": 2400,
+        "start_byte": 2425,
         "conditions": [
           "identity(file)"
         ]
@@ -34999,7 +35000,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 4378,
+        "start_byte": 5032,
         "conditions": [
           "identity(stream)"
         ]
@@ -35026,7 +35027,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 4543,
+        "start_byte": 5197,
         "conditions": [
           "diagnostics::storage(Phase::StorageVerify, || {\n                weekend_db::storage::inspect_file(source, Limits::default())\n            })"
         ]
@@ -35053,7 +35054,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 5000,
+        "start_byte": 5654,
         "conditions": [
           "enrollment(stream, file)"
         ]
@@ -35080,7 +35081,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 5325,
+        "start_byte": 5979,
         "conditions": [
           "enrollment(stream, file)"
         ]
@@ -35107,7 +35108,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 5651,
+        "start_byte": 6305,
         "conditions": [
           "enrollment(stream, file)"
         ]
@@ -35134,7 +35135,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 6250,
+        "start_byte": 6904,
         "conditions": [
           "enrollment(stream, file)"
         ]
@@ -35161,7 +35162,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 5466,
+        "start_byte": 6120,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n                Follower::open(dir, e, Limits::default())\n            })"
         ]
@@ -35188,7 +35189,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 5796,
+        "start_byte": 6450,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n                Follower::open(dir, e, Limits::default())\n            })"
         ]
@@ -35215,7 +35216,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 6403,
+        "start_byte": 7057,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n                    Follower::open(dir, e, Limits::default())\n                })"
         ]
@@ -35242,7 +35243,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "report_follower_status",
         "kind": "try_propagation",
-        "start_byte": 10350,
+        "start_byte": 11123,
         "conditions": [
           "diagnostics::storage(Phase::StorageVerify, || follower.status())"
         ]
@@ -35270,7 +35271,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "compact_follower_with",
         "kind": "try_propagation",
-        "start_byte": 11027,
+        "start_byte": 11800,
         "conditions": [
           "diagnostics::storage(Phase::Maintenance, || follower.status())"
         ]
@@ -35298,7 +35299,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "compact_follower_with",
         "kind": "try_propagation",
-        "start_byte": 11126,
+        "start_byte": 11899,
         "conditions": [
           "diagnostics::storage(Phase::Maintenance, || compact(follower))"
         ]
@@ -35325,7 +35326,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "compact_follower_with",
         "kind": "try_propagation",
-        "start_byte": 11207,
+        "start_byte": 11980,
         "conditions": [
           "diagnostics::storage(Phase::Maintenance, || follower.status())"
         ]
@@ -35353,7 +35354,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "transport",
         "kind": "try_propagation",
-        "start_byte": 3307,
+        "start_byte": 3332,
         "conditions": [
           "diagnostics::at(Phase::CredentialsLoad, || Credentials::load(Path::new(dir)))"
         ]
@@ -35376,7 +35377,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "transport",
         "kind": "try_propagation",
-        "start_byte": 3419,
+        "start_byte": 3444,
         "conditions": [
           "diagnostics::at(Phase::CredentialsLoad, || {\n        bounded_file(Path::new(pin), 65536)\n    })"
         ]
@@ -35399,7 +35400,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 7039,
+        "start_byte": 7693,
         "conditions": [
           "enrollment(stream, file)"
         ]
@@ -35422,7 +35423,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 7081,
+        "start_byte": 7735,
         "conditions": [
           "text(address)"
         ]
@@ -35445,7 +35446,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 7090,
+        "start_byte": 7744,
         "conditions": [
           "text(address)?.parse()"
         ]
@@ -35468,7 +35469,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 7173,
+        "start_byte": 7889,
         "conditions": [
           "option(options, \"--max-exchanges\", usize::MAX, usize::MAX)"
         ]
@@ -35491,7 +35492,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 7225,
+        "start_byte": 7941,
         "conditions": [
           "transport(credentials, pin)"
         ]
@@ -35514,7 +35515,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 7373,
+        "start_byte": 8093,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n                Follower::open(dir, e, Limits::default())\n            })"
         ]
@@ -35537,7 +35538,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8071,
+        "start_byte": 8844,
         "conditions": [
           "identity(stream)"
         ]
@@ -35560,7 +35561,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8113,
+        "start_byte": 8886,
         "conditions": [
           "text(address)"
         ]
@@ -35583,7 +35584,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8122,
+        "start_byte": 8895,
         "conditions": [
           "text(address)?.parse()"
         ]
@@ -35606,7 +35607,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8187,
+        "start_byte": 8960,
         "conditions": [
           "option(options, \"--attempts\", 3, 3)"
         ]
@@ -35629,7 +35630,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8239,
+        "start_byte": 9012,
         "conditions": [
           "transport(credentials, pin)"
         ]
@@ -35652,7 +35653,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8318,
+        "start_byte": 9091,
         "conditions": [
           "prepare(source.as_ref(), stream, export.as_ref())"
         ]
@@ -35675,7 +35676,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8878,
+        "start_byte": 9651,
         "conditions": [
           "identity(stream)"
         ]
@@ -35698,7 +35699,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8920,
+        "start_byte": 9693,
         "conditions": [
           "text(address)"
         ]
@@ -35721,7 +35722,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8929,
+        "start_byte": 9702,
         "conditions": [
           "text(address)?.parse()"
         ]
@@ -35744,7 +35745,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 8994,
+        "start_byte": 9767,
         "conditions": [
           "option(options, \"--attempts\", 3, 3)"
         ]
@@ -35767,7 +35768,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 9046,
+        "start_byte": 9819,
         "conditions": [
           "transport(credentials, pin)"
         ]
@@ -35790,7 +35791,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 9231,
+        "start_byte": 10004,
         "conditions": [
           "prepare_saved(\n                source.as_ref(),\n                stream,\n                export.as_ref(),\n                descriptor.as_ref(),\n            )"
         ]
@@ -35813,7 +35814,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 9606,
+        "start_byte": 10379,
         "conditions": [
           "identity(stream)"
         ]
@@ -35836,7 +35837,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 9648,
+        "start_byte": 10421,
         "conditions": [
           "text(address)"
         ]
@@ -35859,7 +35860,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 9657,
+        "start_byte": 10430,
         "conditions": [
           "text(address)?.parse()"
         ]
@@ -35882,7 +35883,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 9709,
+        "start_byte": 10482,
         "conditions": [
           "transport(credentials, pin)"
         ]
@@ -35905,7 +35906,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 9856,
+        "start_byte": 10629,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n                Database::open_file(source, Limits::default())\n            })"
         ]
@@ -35928,7 +35929,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 7546,
+        "start_byte": 8319,
         "conditions": [
           "identity(stream)"
         ]
@@ -35951,7 +35952,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 7625,
+        "start_byte": 8398,
         "conditions": [
           "prepare(source.as_ref(), stream, export.as_ref())"
         ]
@@ -35974,7 +35975,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "main",
         "kind": "try_propagation",
-        "start_byte": 7749,
+        "start_byte": 8522,
         "conditions": [
           "capture_record::store(Path::new(descriptor), capture)"
         ]
@@ -35997,7 +35998,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "report_capture",
         "kind": "try_propagation",
-        "start_byte": 12513,
+        "start_byte": 13286,
         "conditions": [
           "diagnostics::at(Phase::LocalCommand, || announce(prepared, output))"
         ]
@@ -36020,7 +36021,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "poll",
         "kind": "try_propagation",
-        "start_byte": 11797,
+        "start_byte": 12570,
         "conditions": [
           "diagnostics::at(Phase::Connect, || tls.connect(address))"
         ]
@@ -36043,7 +36044,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "poll",
         "kind": "try_propagation",
-        "start_byte": 11880,
+        "start_byte": 12653,
         "conditions": [
           "diagnostics::storage(Phase::Replication, || primary.poll(channel))"
         ]
@@ -36066,7 +36067,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "deliver",
         "kind": "if",
-        "start_byte": 14185,
+        "start_byte": 14958,
         "conditions": [
           "diagnostics::settings().enabled"
         ]
@@ -36103,7 +36104,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "deliver",
         "kind": "try_propagation",
-        "start_byte": 14403,
+        "start_byte": 15176,
         "conditions": [
           "ship(&mut prepared, tls, address, attempts).map_err(|error| {\n        if diagnostics::settings().enabled { error } else {\n            format!(\"transfer not confirmed; follower outcome may be uncertain: {error}. Poll on a fresh authenticated connection. {context}\").into()\n        }\n    })"
         ]
@@ -48600,6 +48601,19 @@
         "reason": "integration test target; use --include-tests",
         "required_features": [],
         "target": "weekend-db::logical",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/packed_blobs.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "packed_blobs",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::packed_blobs",
         "workspace_manifest": "Cargo.toml"
       },
       {

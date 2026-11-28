@@ -5561,8 +5561,8 @@
     {
       "name": "r1-owned-value-bytes-length",
       "file": "src/value.rs",
-      "old": "if bytes.len() > mem.limits().max_bytes {",
-      "new": "if bytes.len() >= mem.limits().max_bytes {",
+      "old": "if len > mem.limits().max_bytes {",
+      "new": "if len >= mem.limits().max_bytes {",
       "test": "value_decisions",
       "target": "--test",
       "occurrence": 1,
