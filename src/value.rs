@@ -124,14 +124,22 @@ impl Value {
         Self::new(mem, data, 1, 16)
     }
     pub(crate) fn bytes_new(mem: &Memory, bytes: &[u8]) -> Result<Self> {
-        if bytes.len() > mem.limits().max_bytes {
+        let weight = Self::bytes_weight(mem, bytes.len())?;
+        Self::new(mem, Data::Bytes(mem.copy(bytes)?), 1, weight)
+    }
+    pub(crate) fn owned_bytes(mem: &Memory, bytes: ChargedVec<u8>) -> Result<Self> {
+        let weight = Self::bytes_weight(mem, bytes.len())?;
+        Self::new(mem, Data::Bytes(bytes), 1, weight)
+    }
+    pub(crate) fn bytes_weight(mem: &Memory, len: usize) -> Result<usize> {
+        if len > mem.limits().max_bytes {
             return Err(Error::Limit);
         }
-        let weight = bytes.len().checked_add(16).ok_or(Error::Limit)?;
+        let weight = len.checked_add(16).ok_or(Error::Limit)?;
         if weight > mem.limits().max_value_bytes {
             return Err(Error::Limit);
         }
-        Self::new(mem, Data::Bytes(mem.copy(bytes)?), 1, weight)
+        Ok(weight)
     }
     pub(crate) fn weight(&self) -> usize {
         self.node.weight

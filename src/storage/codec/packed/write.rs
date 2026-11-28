@@ -342,13 +342,12 @@ impl Encoder<'_> {
             let mut cursor = Cursor::new(&raw[pos..]);
             let entry = entry(self.mem, &mut cursor)?;
             let blob = Blob::parse(entry.value)?;
-            let born = entry.revision;
             pos += cursor.pos;
             if let Some(blob) = blob {
                 let new = if let Some(copy) = self.relocation.blobs.get(blob.offset) {
                     *copy
                 } else {
-                    let data = src.access(|io| blob.read(io, self.mem))?;
+                    let (born, data) = src.access(|io| blob.read(io, self.mem))?;
                     let copy = Blob::write(self, &data, born)?;
                     self.relocation.blobs.insert(self.mem, blob.offset, copy)?;
                     copy

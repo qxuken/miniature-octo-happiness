@@ -716,3 +716,13 @@ The Windows evidence ZIP SHA-256 is
 `7f6485ea3000c53daca8299211eb6c20c2433b4b61d1c03b2f7c3497cc2365a2`.
 [Hosted Windows minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241636/job/139639898280)
 and [checksummed archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241636/artifacts/15081556336).
+
+### Follower transfer admission
+
+`weekend-replicate serve` accepts new images up to 64 MiB by default. Pass
+`--max-transfer-bytes 1073741824` to accept up to 1 GiB on this invocation.
+This flag can appear before or after `--max-exchanges N`. Restarting the service
+restores the default unless the flag is supplied again. A smaller limit still
+allows polling and acknowledging an already installed revision. Larger new offers
+are rejected before the follower sends Ready or creates its staging file.
+Decoded record limits and the 30-second TLS exchange deadline apply independently.

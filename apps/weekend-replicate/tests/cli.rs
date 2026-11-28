@@ -213,6 +213,22 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         "--max-exchanges",
         "1",
     ];
+    let mut limited_args = server_args.to_vec();
+    limited_args.extend(["--max-transfer-bytes", "20480"]);
+    let (mut limited, address) = Server::start(&dir.0, &limited_args);
+    let rejected = Command::new(BIN)
+        .args(["ship", source, stream])
+        .arg(dir.0.join("over-limit"))
+        .arg(&address)
+        .arg(&a)
+        .arg(&b_pin)
+        .args(["--attempts", "1"])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    limited.finished();
+    assert!(run(&["status", follower, stream, identity]).starts_with("follower empty\n"));
+    assert!(!Path::new(follower).join("replica-0.wdb").exists());
     let (mut server, address) = Server::start(&dir.0, &server_args);
     let export = dir.0.join("export");
     let sent = run(&[

@@ -1112,7 +1112,34 @@ impl Reader<'_> {
                 deferred_blob = true;
             }
         }
-        if !deferred_blob {
+        if !deferred_blob && kind == packed::blob::BLOB {
+            let mut digest = checksum(&header, 48);
+            let mut pos = OBJECT_HEADER;
+            let size = size as usize;
+            let window = self
+                .backend
+                .read_window()
+                .clamp(REGION, 64 * 1024)
+                .min(size - pos);
+            self.mem.reserve(&mut bytes, window)?;
+            bytes.resize(window, 0);
+            while pos < size {
+                let chunk = &mut bytes[..window.min(size - pos)];
+                read_all(self.backend, offset + pos as u64, chunk)?;
+                let payload = (OBJECT_HEADER + payload_len)
+                    .saturating_sub(pos)
+                    .min(chunk.len());
+                if chunk[payload..].iter().any(|&b| b != 0) {
+                    return Err(Error::Corrupt);
+                }
+                digest = update_crc(digest, chunk);
+                pos += chunk.len();
+            }
+            if digest != u64_at(&header, 48) {
+                return Err(Error::Corrupt);
+            }
+            bytes.clear();
+        } else if !deferred_blob {
             self.mem.reserve(&mut bytes, size as usize)?;
             bytes.resize(size as usize, 0);
             read_all(self.backend, offset, &mut bytes)?;

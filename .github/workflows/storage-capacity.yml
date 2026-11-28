@@ -29,7 +29,7 @@ jobs:
           sudo mount -o loop "$RUNNER_TEMP/capacity.ext4" "$RUNNER_TEMP/capacity-quota"
           sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/capacity-quota"
           echo "WDB_MIGRATION_QUOTA_VOLUME=$RUNNER_TEMP/capacity-quota" >> "$GITHUB_ENV"
-      - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test packed_directory --test storage_capacity
+      - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test packed_directory --test storage_capacity --test packed_blobs
       - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test packed_directory -- --ignored --nocapture
       - run: cargo +1.100.0 test --release --locked -p weekend-db --all-features --test storage_capacity -- --ignored --nocapture --test-threads=1
       - name: Release the quota volume

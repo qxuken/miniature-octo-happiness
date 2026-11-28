@@ -1,5 +1,7 @@
 # weekend-db
 
+For larger files and offline conversion, see [format 4 capacity and migration](docs/storage-capacity.md).
+
 Licensed under MIT OR Apache-2.0. Cargo packages remain private.
 [Operations guide](docs/operations.md) · [Private release contract](docs/release-contract.md) · [Roadmap status](docs/roadmap-status.md) · [Authenticated snapshot CLI](docs/replication-operations.md#authenticated-native-cli)
 

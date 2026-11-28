@@ -735,6 +735,10 @@ fn lost_ack_is_recovered_and_a_delayed_offer_never_rolls_back_progress() {
     let mut query = Exchange::request(fixture.enrollment, None);
     assert_eq!(query.serve(&mut receiver), Ok(Some(ack)));
     assert_eq!(ack.revision, fixture.next.revision());
+    // A restarted service may accept smaller new transfers while keeping its
+    // durable receipt for the previous enrollment and selected image.
+    receiver.max_transfer_bytes = crate::storage::APPEND_START as u64;
+    assert!(fixture.first.offer.length > receiver.max_transfer_bytes);
     let delayed = Exchange::offer(&mut fixture.first);
     let duplicate = Exchange::offer(&mut fixture.next);
     let mut conflict = Exchange::offer(&mut fixture.next);

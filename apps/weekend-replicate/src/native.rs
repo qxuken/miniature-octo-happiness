@@ -27,7 +27,7 @@ weekend-replicate follower-init <empty-dir> <stream-hex> <file-identity-hex>
 weekend-replicate cleanup-inactive <follower-dir> <stream-hex> <file-identity-hex>
 weekend-replicate compact-manifest <follower-dir> <stream-hex> <file-identity-hex>
 weekend-replicate status <follower-dir> <stream-hex> <file-identity-hex>
-weekend-replicate serve <follower-dir> <stream-hex> <file-identity-hex> <listen-ip:port> <credentials-dir> <peer-cert.der> [--max-exchanges N]
+weekend-replicate serve <follower-dir> <stream-hex> <file-identity-hex> <listen-ip:port> <credentials-dir> <peer-cert.der> [--max-exchanges N] [--max-transfer-bytes N]
 weekend-replicate ship <source-db> <stream-hex> <new-export-file> <peer-ip:port> <credentials-dir> <peer-cert.der> [--attempts N]
 weekend-replicate capture <source-db> <stream-hex> <new-export-file> <new-descriptor-db>
 weekend-replicate ship-captured <source-db> <stream-hex> <export-file> <descriptor-db> <peer-ip:port> <credentials-dir> <peer-cert.der> [--attempts N]
@@ -104,6 +104,20 @@ fn option(
         _ => Err(USAGE.into()),
     }
 }
+fn transfer_option(args: &[std::ffi::OsString]) -> AppResult<(&[std::ffi::OsString], u64)> {
+    let (rest, value) = match args {
+        [flag, value, rest @ ..] if flag == "--max-transfer-bytes" => (rest, value),
+        [rest @ .., flag, value] if flag == "--max-transfer-bytes" => (rest, value),
+        _ => return Ok((args, weekend_db::storage::MAX_IMAGE_BYTES as u64)),
+    };
+    let n = text(value)?.parse::<u64>()?;
+    if !(weekend_db::storage::APPEND_START as u64..=weekend_db::replication::MAX_TRANSFER_BYTES)
+        .contains(&n)
+    {
+        return Err("option outside bounds".into());
+    }
+    Ok((rest, n))
+}
 pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
     match args.as_slice() {
         [c] if c == "--help" || c == "-h" => print_report(format_args!("{USAGE}")),
@@ -179,11 +193,13 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
         ] if c == "serve" => {
             let e = enrollment(stream, file)?;
             let address = text(address)?.parse()?;
+            let (options, bytes) = transfer_option(options)?;
             let max = option(options, "--max-exchanges", usize::MAX, usize::MAX)?;
             let tls = transport(credentials, pin)?;
-            let follower = diagnostics::storage(Phase::StorageOpen, || {
+            let mut follower = diagnostics::storage(Phase::StorageOpen, || {
                 Follower::open(dir, e, Limits::default())
             })?;
+            follower.set_max_transfer_bytes(bytes)?;
             serve(follower, address, &tls, max)
         }
         [c, source, stream, export, descriptor] if c == "capture" => {

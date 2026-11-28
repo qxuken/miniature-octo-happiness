@@ -186,9 +186,6 @@ impl<I: Images> Receiver<I> {
         let Some(offer) = wire::read_request(channel, self.enrollment)? else {
             return Ok(progress.map_or(wire::Reply::Empty, wire::Reply::Installed));
         };
-        if offer.length > self.max_transfer_bytes {
-            return Err(Error::Limit);
-        }
         if let Some((prior, _)) = &self.installed {
             if offer.revision < prior.offer.revision || offer == prior.offer {
                 return Ok(wire::Reply::Installed(prior.offer.ack(self.enrollment)));
@@ -196,6 +193,9 @@ impl<I: Images> Receiver<I> {
             if offer.revision == prior.offer.revision {
                 return Err(Error::Conflict);
             }
+        }
+        if offer.length > self.max_transfer_bytes {
+            return Err(Error::Limit);
         }
         let slot = self
             .installed

@@ -182,8 +182,8 @@ impl Tree {
             if !self.source.3.extended() {
                 return Err(Error::Corrupt);
             }
-            let bytes = self.source.access(|io| blob.read(io, mem))?;
-            Value::bytes_new(mem, &bytes)
+            let (_, bytes) = self.source.access(|io| blob.read(io, mem))?;
+            Value::owned_bytes(mem, bytes)
         } else {
             decode(mem, raw)
         }
@@ -449,7 +449,10 @@ impl Reader<'_> {
                             Record {
                                 revision: r.revision,
                                 value: if let Some(blob) = Blob::parse(r.value)? {
-                                    Value::bytes_new(self.mem, &blob.read(self.backend, self.mem)?)?
+                                    Value::owned_bytes(
+                                        self.mem,
+                                        blob.read(self.backend, self.mem)?.1,
+                                    )?
                                 } else {
                                     decode(self.mem, r.value)?
                                 },

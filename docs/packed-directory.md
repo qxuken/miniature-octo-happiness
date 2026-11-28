@@ -64,7 +64,7 @@ cargo +1.100.0 test -p weekend-db --release --all-features --locked --test packe
   million_distinct_packed_values -- --ignored --exact --nocapture
 ```
 
-Native Windows runtime qualification, a v2-to-v3 migration, larger file offsets, and equivalent million-key coverage for distributed paths remain open.
+For subsequent migration, large-offset and distributed results, see [format 4 capacity and migration](storage-capacity.md).
 
 ## Verification checkpoint
 

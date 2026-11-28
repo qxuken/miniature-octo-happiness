@@ -1939,3 +1939,38 @@ fn manifest_status_failures_report_the_operation_phase() {
     assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
     check(&open(), ack, 2);
 }
+
+#[test]
+fn transfer_ceiling_composes_with_exchange_count() {
+    for (args, expected) in [
+        (vec![], Some((usize::MAX, 64 << 20))),
+        (
+            vec!["--max-transfer-bytes", "1073741824", "--max-exchanges", "2"],
+            Some((2, 1 << 30)),
+        ),
+        (
+            vec!["--max-exchanges", "2", "--max-transfer-bytes", "20480"],
+            Some((2, 20480)),
+        ),
+        (vec!["--max-transfer-bytes", "20479"], None),
+        (vec!["--max-transfer-bytes", "1073741825"], None),
+        (
+            vec![
+                "--max-transfer-bytes",
+                "20480",
+                "--max-transfer-bytes",
+                "20480",
+            ],
+            None,
+        ),
+    ] {
+        let args = args
+            .into_iter()
+            .map(std::ffi::OsString::from)
+            .collect::<Vec<_>>();
+        let actual = transfer_option(&args).and_then(|(rest, n)| {
+            Ok((option(rest, "--max-exchanges", usize::MAX, usize::MAX)?, n))
+        });
+        assert_eq!(actual.ok(), expected);
+    }
+}

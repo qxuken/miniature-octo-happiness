@@ -1,5 +1,7 @@
 # weekend-db target design
 
+For larger files and offline conversion, see [format 4 capacity and migration](docs/storage-capacity.md).
+
 This document describes a portable embedded database whose main abstraction is
 an immutable application-state snapshot. A snapshot contains stable keyed
 records; record values can contain nested persistent maps, lists, scalars, and

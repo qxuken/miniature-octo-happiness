@@ -39,11 +39,9 @@ impl Blob {
             digest,
         })
     }
-    pub fn read(self, io: &mut dyn ByteStore, mem: &Memory) -> Result<ChargedVec<u8>> {
+    pub fn read(self, io: &mut dyn ByteStore, mem: &Memory) -> Result<(u64, ChargedVec<u8>)> {
         let len = usize::try_from(self.len).map_err(|_| Error::Limit)?;
-        if len > mem.limits().max_bytes {
-            return Err(Error::Limit);
-        }
+        Value::bytes_weight(mem, len)?;
         let size = align(
             self.len
                 .checked_add(OBJECT_HEADER as u64)
@@ -61,9 +59,10 @@ impl Blob {
         {
             return Err(Error::Corrupt);
         }
+        let born = u64_at(&bytes, 24);
         bytes.copy_within(OBJECT_HEADER..OBJECT_HEADER + len, 0);
         bytes.truncate(len);
-        Ok(bytes)
+        Ok((born, bytes))
     }
 }
 impl Reader<'_> {
@@ -72,9 +71,7 @@ impl Reader<'_> {
             return Err(Error::Corrupt);
         }
         let len = usize::try_from(blob.len).map_err(|_| Error::Limit)?;
-        if len > self.mem.limits().max_bytes || len > self.mem.limits().max_value_bytes {
-            return Err(Error::Limit);
-        }
+        Value::bytes_weight(self.mem, len)?;
         if let Some((known, end, born)) = self.blobs.get(blob.offset) {
             return if *known == blob && *end <= parent && *born <= row_revision {
                 Ok(())
